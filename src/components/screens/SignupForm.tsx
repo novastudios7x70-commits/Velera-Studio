@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Lock } from "lucide-react";
+import { ArrowLeft, Mail, Lock, MailCheck } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 import { signUpAction, type AuthActionState } from "@/lib/auth-actions";
@@ -16,6 +16,21 @@ export function SignupForm() {
   const presetPlan = searchParams.get("plan") ?? "studio";
   const [plan, setPlan] = useState(presetPlan);
   const [state, formAction, pending] = useActionState(signUpAction, initialState);
+
+  if (state.info) {
+    return (
+      <div className="nova-fade-in max-w-md mx-auto px-6 py-16 w-full text-center">
+        <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-violet-soft">
+          <MailCheck size={22} className="text-violet" />
+        </div>
+        <h1 className="nova-display font-semibold mb-2 text-[20px] text-text">Check your email</h1>
+        <p className="text-[13.5px] text-muted mb-6">{state.info}</p>
+        <Link href="/login" className="text-[13px] text-violet">
+          Go to login
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="nova-fade-in max-w-md mx-auto px-6 py-16 w-full">

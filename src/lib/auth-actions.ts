@@ -7,6 +7,8 @@ import type { Plan } from "@/lib/database.types";
 
 export interface AuthActionState {
   error: string | null;
+  /** Non-error status to show the user, e.g. "check your email to confirm." */
+  info?: string | null;
 }
 
 export async function signUpAction(
@@ -31,7 +33,7 @@ export async function signUpAction(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -53,6 +55,17 @@ export async function signUpAction(
   // plan the user picked here; /pricing is where the real subscription starts.
   void plan;
 
+  // Supabase projects with "Confirm email" on (the default) don't return a
+  // session until the user clicks the emailed confirmation link — redirecting
+  // to /dashboard here would just bounce them back to /login with no
+  // explanation, so tell them what's actually happening instead.
+  if (!data.session) {
+    return {
+      error: null,
+      info: `We sent a confirmation link to ${email} — click it to activate your account, then log in.`,
+    };
+  }
+
   revalidatePath("/", "layout");
   redirect("/dashboard");
 }
@@ -72,6 +85,11 @@ export async function logInAction(
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
+    if (error.code === "email_not_confirmed" || /confirm/i.test(error.message)) {
+      return {
+        error: "Please confirm your email first — check your inbox for the link we sent when you signed up.",
+      };
+    }
     return { error: "Incorrect email or password." };
   }
 
