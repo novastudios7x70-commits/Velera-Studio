@@ -1,0 +1,12 @@
+{
+  "eval_id": 2,
+  "eval_name": "eval-notification-bell",
+  "prompt": "Add a notification bell icon to the header showing recent job completions in a dropdown.",
+  "assertions": [
+    "The dropdown includes a designed empty state (e.g. \"no notifications yet\") rather than rendering nothing or a blank list when there's no data",
+    "The dropdown/menu uses shadow-based elevation (.nova-card pattern) consistent with the rest of the app",
+    "Interactive elements (bell trigger, dropdown items) have visible focus states or aria attributes for keyboard/screen-reader accessibility",
+    "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+    "Reuses existing shared primitives/tokens rather than inventing one-off styling for the same job"
+  ]
+}

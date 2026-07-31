@@ -1,0 +1,47 @@
+{
+  "skill_name": "ui-ux-pro-max",
+  "evals": [
+    {
+      "id": 0,
+      "eval_name": "eval-confirmation-modal",
+      "prompt": "Add a confirmation modal before deleting a project from the dashboard.",
+      "expected_output": "A real, working delete flow: a delete action on each project card, a custom-styled confirmation modal (not a native browser confirm()), and a real API route performing the delete under RLS.",
+      "files": [],
+      "assertions": [
+        "Does not use the native browser confirm()/alert() for the confirmation step",
+        "Confirmation modal/dialog uses shadow-based elevation (.nova-card or equivalent shadow) rather than a plain bordered box",
+        "Action buttons reuse existing shared primitives (PrimaryButton/GhostButton from src/components/ui/Button.tsx) instead of raw unstyled <button> elements",
+        "The destructive confirm action has a visible pending/loading state while the delete request is in flight",
+        "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css"
+      ]
+    },
+    {
+      "id": 1,
+      "eval_name": "eval-upload-page-polish",
+      "prompt": "The upload page feels kind of plain, make it feel more premium.",
+      "expected_output": "Principled visual polish grounded in the existing design tokens (shadow/elevation, type hierarchy, spacing rhythm, restrained motion) rather than surface-level changes like adding random color or a generic gradient.",
+      "files": [],
+      "assertions": [
+        "Headings continue to use the Outfit/display font class and body copy the Plus Jakarta Sans/root font class, not swapped or mixed arbitrarily",
+        "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+        "Any new motion/animation is restrained (fade/lift-style) rather than bouncy or attention-grabbing easing",
+        "Elevation/depth changes use shadow-based styling (.nova-card pattern) rather than only heavier borders",
+        "Existing shared primitives (Field, PrimaryButton, StepPill, etc.) are reused rather than reimplemented inline"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "eval-notification-bell",
+      "prompt": "Add a notification bell icon to the header showing recent job completions in a dropdown.",
+      "expected_output": "A real notification bell + dropdown component querying actual job data, with a designed empty state, reusing existing primitives/tokens, and basic keyboard/focus accessibility.",
+      "files": [],
+      "assertions": [
+        "The dropdown includes a designed empty state (e.g. \"no notifications yet\") rather than rendering nothing or a blank list when there's no data",
+        "The dropdown/menu uses shadow-based elevation (.nova-card pattern) consistent with the rest of the app",
+        "Interactive elements (bell trigger, dropdown items) have visible focus states or aria attributes for keyboard/screen-reader accessibility",
+        "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+        "Reuses existing shared primitives/tokens rather than inventing one-off styling for the same job"
+      ]
+    }
+  ]
+}

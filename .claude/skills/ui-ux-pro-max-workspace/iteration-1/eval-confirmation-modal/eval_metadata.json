@@ -1,0 +1,12 @@
+{
+  "eval_id": 0,
+  "eval_name": "eval-confirmation-modal",
+  "prompt": "Add a confirmation modal before deleting a project from the dashboard.",
+  "assertions": [
+    "Does not use the native browser confirm()/alert() for the confirmation step",
+    "Confirmation modal/dialog uses shadow-based elevation (.nova-card or equivalent shadow) rather than a plain bordered box",
+    "Action buttons reuse existing shared primitives (PrimaryButton/GhostButton from src/components/ui/Button.tsx) instead of raw unstyled <button> elements",
+    "The destructive confirm action has a visible pending/loading state while the delete request is in flight",
+    "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css"
+  ]
+}

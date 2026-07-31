@@ -45,3 +45,6 @@ next-env.d.ts
 worker/node_modules
 worker/dist
 worker/*.tsbuildinfo
+
+# harness-managed agent worktrees (scratch working copies, not project content)
+.claude/worktrees/

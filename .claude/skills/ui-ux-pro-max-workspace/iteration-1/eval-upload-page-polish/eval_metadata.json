@@ -1,0 +1,12 @@
+{
+  "eval_id": 1,
+  "eval_name": "eval-upload-page-polish",
+  "prompt": "The upload page feels kind of plain, make it feel more premium.",
+  "assertions": [
+    "Headings continue to use the Outfit/display font class and body copy the Plus Jakarta Sans/root font class, not swapped or mixed arbitrarily",
+    "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+    "Any new motion/animation is restrained (fade/lift-style) rather than bouncy or attention-grabbing easing",
+    "Elevation/depth changes use shadow-based styling (.nova-card pattern) rather than only heavier borders",
+    "Existing shared primitives (Field, PrimaryButton, StepPill, etc.) are reused rather than reimplemented inline"
+  ]
+}
