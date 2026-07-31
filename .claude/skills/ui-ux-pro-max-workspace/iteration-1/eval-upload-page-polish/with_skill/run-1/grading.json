@@ -1,0 +1,36 @@
+{
+  "expectations": [
+    {
+      "text": "Headings continue to use the Outfit/display font class and body copy the Plus Jakarta Sans/root font class, not swapped or mixed arbitrarily",
+      "passed": true,
+      "evidence": "nova-display still used for all headings/eyebrow labels (4 occurrences), no font classes removed or swapped."
+    },
+    {
+      "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+      "passed": true,
+      "evidence": "grep for hex codes in upload/page.tsx and StepPill.tsx returns nothing -- all new styling uses var(--...) references or existing utility classes."
+    },
+    {
+      "text": "Any new motion/animation is restrained (fade/lift-style) rather than bouncy or attention-grabbing easing",
+      "passed": true,
+      "evidence": "No new @keyframes/animation rules added; reuses existing nova-fade-in / nova-pulse-glow / nova-card-select vocabulary per the SUMMARY."
+    },
+    {
+      "text": "Elevation/depth changes use shadow-based styling (.nova-card pattern) rather than only heavier borders",
+      "passed": true,
+      "evidence": "3 new nova-card usages for the beat-sync toggle row, style-preference fields, and dropzone container."
+    },
+    {
+      "text": "Existing shared primitives (Field, PrimaryButton, StepPill, etc.) are reused rather than reimplemented inline",
+      "passed": true,
+      "evidence": "StepPill.tsx extended (not duplicated) to support clickable/back-navigable pills; PrimaryButton retained for the submit CTA."
+    }
+  ],
+  "additional_finding": "The file dropzone uses a real <label> wrapping the hidden file input (page.tsx lines 312, 335), which is natively keyboard-focusable/activatable (Tab + Enter/Space) -- a concrete accessibility win the assertions above didn't explicitly test for but the skill's 'every interactive element needs a visible focus state' principle implies.",
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  }
+}

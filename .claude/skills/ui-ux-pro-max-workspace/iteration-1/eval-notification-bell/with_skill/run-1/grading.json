@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "The dropdown includes a designed empty state (e.g. \"no notifications yet\") rather than rendering nothing or a blank list when there's no data",
+      "passed": true,
+      "evidence": "NotificationBell.tsx line 112-116: notifications.length === 0 renders a centered Bell icon + \"Nothing yet \u2014 completed jobs will show up here.\""
+    },
+    {
+      "text": "The dropdown/menu uses shadow-based elevation (.nova-card pattern) consistent with the rest of the app",
+      "passed": true,
+      "evidence": "Line 106: className includes \"nova-fade-in nova-card nova-scrollbar ... rounded-2xl\"."
+    },
+    {
+      "text": "Interactive elements (bell trigger, dropdown items) have visible focus states or aria attributes for keyboard/screen-reader accessibility",
+      "passed": true,
+      "evidence": "aria-haspopup=\"menu\", aria-expanded={open} on the trigger, role=\"menu\" on the dropdown; closes on outside-click/Escape per the summary."
+    },
+    {
+      "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+      "passed": true,
+      "evidence": "No hex literals found in NotificationBell.tsx or the SiteHeader.tsx diff -- status colors use existing text-violet/text-coral utilities."
+    },
+    {
+      "text": "Reuses existing shared primitives/tokens rather than inventing one-off styling for the same job",
+      "passed": true,
+      "evidence": "Matches ProcessingView's existing done/failed color treatment (teal check / coral warning) and reuses the dashboard's job-fetching query pattern."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  }
+}

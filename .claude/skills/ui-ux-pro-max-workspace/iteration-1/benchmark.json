@@ -1,0 +1,323 @@
+{
+  "metadata": {
+    "skill_name": "ui-ux-pro-max",
+    "skill_path": "<path/to/skill>",
+    "executor_model": "<model-name>",
+    "analyzer_model": "<model-name>",
+    "timestamp": "2026-07-31T02:21:38Z",
+    "evals_run": [
+      0,
+      1,
+      2
+    ],
+    "runs_per_configuration": 3
+  },
+  "runs": [
+    {
+      "eval_id": 0,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 413.6,
+        "tokens": 91668,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not use the native browser confirm()/alert() for the confirmation step",
+          "passed": true,
+          "evidence": "New ConfirmDialog.tsx is a fully custom modal (role=\"alertdialog\", nova-card, escape/backdrop close); no confirm()/alert() calls anywhere in the diff."
+        },
+        {
+          "text": "Confirmation modal/dialog uses shadow-based elevation (.nova-card or equivalent shadow) rather than a plain bordered box",
+          "passed": true,
+          "evidence": "ConfirmDialog.tsx line 69: className=\"nova-card nova-fade-in relative w-full max-w-sm rounded-2xl p-6\"."
+        },
+        {
+          "text": "Action buttons reuse existing shared primitives (PrimaryButton/GhostButton) instead of raw unstyled <button>",
+          "passed": true,
+          "evidence": "Modal's Cancel/Confirm actions use GhostButton and a new DangerButton/PrimaryButton (ConfirmDialog.tsx lines 88-93). The per-row trash trigger is a raw <button>, but it's a deliberately unlabeled icon control, not a text CTA, and is fully styled with hover/focus-visible states and a 40x40px target (ProjectCard.tsx line 88-95) -- a reasonable exception, not an unstyled element."
+        },
+        {
+          "text": "The destructive confirm action has a visible pending/loading state while the delete request is in flight",
+          "passed": true,
+          "evidence": "ConfirmDialog.tsx line 92: confirm button label swaps to \"Deleting\u2026\" and both buttons are disabled while loading."
+        },
+        {
+          "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+          "passed": true,
+          "evidence": "Only new hex in globals.css is #b45309, a darker shade paired with --coral for the new danger-button gradient, following the exact same pattern already used for the primary button gradient (--violet, #0f766e)."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 272.8,
+        "tokens": 76000,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "The dropdown includes a designed empty state (e.g. \"no notifications yet\") rather than rendering nothing or a blank list when there's no data",
+          "passed": true,
+          "evidence": "NotificationBell.tsx line 112-116: notifications.length === 0 renders a centered Bell icon + \"Nothing yet \u2014 completed jobs will show up here.\""
+        },
+        {
+          "text": "The dropdown/menu uses shadow-based elevation (.nova-card pattern) consistent with the rest of the app",
+          "passed": true,
+          "evidence": "Line 106: className includes \"nova-fade-in nova-card nova-scrollbar ... rounded-2xl\"."
+        },
+        {
+          "text": "Interactive elements (bell trigger, dropdown items) have visible focus states or aria attributes for keyboard/screen-reader accessibility",
+          "passed": true,
+          "evidence": "aria-haspopup=\"menu\", aria-expanded={open} on the trigger, role=\"menu\" on the dropdown; closes on outside-click/Escape per the summary."
+        },
+        {
+          "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+          "passed": true,
+          "evidence": "No hex literals found in NotificationBell.tsx or the SiteHeader.tsx diff -- status colors use existing text-violet/text-coral utilities."
+        },
+        {
+          "text": "Reuses existing shared primitives/tokens rather than inventing one-off styling for the same job",
+          "passed": true,
+          "evidence": "Matches ProcessingView's existing done/failed color treatment (teal check / coral warning) and reuses the dashboard's job-fetching query pattern."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "with_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 372.5,
+        "tokens": 82267,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Headings continue to use the Outfit/display font class and body copy the Plus Jakarta Sans/root font class, not swapped or mixed arbitrarily",
+          "passed": true,
+          "evidence": "nova-display still used for all headings/eyebrow labels (4 occurrences), no font classes removed or swapped."
+        },
+        {
+          "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+          "passed": true,
+          "evidence": "grep for hex codes in upload/page.tsx and StepPill.tsx returns nothing -- all new styling uses var(--...) references or existing utility classes."
+        },
+        {
+          "text": "Any new motion/animation is restrained (fade/lift-style) rather than bouncy or attention-grabbing easing",
+          "passed": true,
+          "evidence": "No new @keyframes/animation rules added; reuses existing nova-fade-in / nova-pulse-glow / nova-card-select vocabulary per the SUMMARY."
+        },
+        {
+          "text": "Elevation/depth changes use shadow-based styling (.nova-card pattern) rather than only heavier borders",
+          "passed": true,
+          "evidence": "3 new nova-card usages for the beat-sync toggle row, style-preference fields, and dropzone container."
+        },
+        {
+          "text": "Existing shared primitives (Field, PrimaryButton, StepPill, etc.) are reused rather than reimplemented inline",
+          "passed": true,
+          "evidence": "StepPill.tsx extended (not duplicated) to support clickable/back-navigable pills; PrimaryButton retained for the submit CTA."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 0,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 525.1,
+        "tokens": 124927,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Does not use the native browser confirm()/alert() for the confirmation step",
+          "passed": true,
+          "evidence": "New ConfirmModal.tsx is a fully custom modal (role=\"alertdialog\", nova-card, escape/backdrop close); no confirm()/alert() calls anywhere in the diff."
+        },
+        {
+          "text": "Confirmation modal/dialog uses shadow-based elevation (.nova-card or equivalent shadow) rather than a plain bordered box",
+          "passed": true,
+          "evidence": "ConfirmModal.tsx line 66: className includes \"nova-modal-panel nova-card rounded-2xl px-6 py-6\"."
+        },
+        {
+          "text": "Action buttons reuse existing shared primitives (PrimaryButton/GhostButton) instead of raw unstyled <button>",
+          "passed": true,
+          "evidence": "Modal's Cancel/Confirm actions use GhostButton and a new DangerButton (ConfirmModal.tsx lines 78-83). The per-row trash trigger is a raw <button> (ProjectList.tsx line 131), styled with hover states but at only 32x32px (w-8 h-8) with no focus-visible outline -- notably weaker than the with-skill version's 40x40px + focus-visible trigger, though still has an aria-label."
+        },
+        {
+          "text": "The destructive confirm action has a visible pending/loading state while the delete request is in flight",
+          "passed": true,
+          "evidence": "ConfirmModal.tsx line 82: confirm button label swaps to \"Deleting\u2026\" and both buttons are disabled while loading."
+        },
+        {
+          "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+          "passed": true,
+          "evidence": "Only new hex in globals.css is #b3410f, a darker shade paired with --coral for the new danger-button gradient, following the same pattern already used for the primary button gradient."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 2,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 283.0,
+        "tokens": 68756,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "The dropdown includes a designed empty state (e.g. \"no notifications yet\") rather than rendering nothing or a blank list when there's no data",
+          "passed": true,
+          "evidence": "NotificationBell.tsx line 79-85: renders an Inbox icon + \"You'll see job updates here once a clip finishes processing.\""
+        },
+        {
+          "text": "The dropdown/menu uses shadow-based elevation (.nova-card pattern) consistent with the rest of the app",
+          "passed": true,
+          "evidence": "Line 73: className includes \"nova-fade-in ... nova-card rounded-2xl py-2\"."
+        },
+        {
+          "text": "Interactive elements (bell trigger, dropdown items) have visible focus states or aria attributes for keyboard/screen-reader accessibility",
+          "passed": true,
+          "evidence": "aria-expanded={open}, aria-haspopup=\"true\" on trigger, role=\"menu\" on dropdown."
+        },
+        {
+          "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+          "passed": true,
+          "evidence": "No hex literals found in NotificationBell.tsx or SiteHeader.tsx diff."
+        },
+        {
+          "text": "Reuses existing shared primitives/tokens rather than inventing one-off styling for the same job",
+          "passed": true,
+          "evidence": "Reuses violet/coral status colors and nova-card/nova-fade-in; extracted a shared timeAgo() into src/lib/format.ts and had dashboard/page.tsx import it instead of keeping a duplicate -- a genuinely good dedup move."
+        }
+      ],
+      "notes": []
+    },
+    {
+      "eval_id": 1,
+      "configuration": "without_skill",
+      "run_number": 1,
+      "result": {
+        "pass_rate": 1.0,
+        "passed": 5,
+        "failed": 0,
+        "total": 5,
+        "time_seconds": 278.5,
+        "tokens": 84750,
+        "tool_calls": 0,
+        "errors": 0
+      },
+      "expectations": [
+        {
+          "text": "Headings continue to use the Outfit/display font class and body copy the Plus Jakarta Sans/root font class, not swapped or mixed arbitrarily",
+          "passed": true,
+          "evidence": "nova-display still used throughout (7 occurrences), fonts not swapped."
+        },
+        {
+          "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+          "passed": true,
+          "evidence": "New CSS (.nova-chip, .nova-dropzone, .nova-icon-badge, .nova-step-track) and new Switch.tsx all reference var(--...) tokens, no new raw hex values."
+        },
+        {
+          "text": "Any new motion/animation is restrained (fade/lift-style) rather than bouncy or attention-grabbing easing",
+          "passed": true,
+          "evidence": "No new @keyframes added; existing novaFadeIn/novaPulse are the only animations present."
+        },
+        {
+          "text": "Elevation/depth changes use shadow-based styling (.nova-card pattern) rather than only heavier borders",
+          "passed": true,
+          "evidence": "5 new nova-card usages across the rebuilt page."
+        },
+        {
+          "text": "Existing shared primitives (Field, PrimaryButton, StepPill, etc.) are reused rather than reimplemented inline",
+          "passed": true,
+          "evidence": "PrimaryButton retained; a new Switch.tsx primitive was added (reasonable -- no toggle primitive existed before to reuse)."
+        }
+      ],
+      "notes": []
+    }
+  ],
+  "run_summary": {
+    "with_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 352.9667,
+        "stddev": 72.4039,
+        "min": 272.8,
+        "max": 413.6
+      },
+      "tokens": {
+        "mean": 83311.6667,
+        "stddev": 7886.067,
+        "min": 76000,
+        "max": 91668
+      }
+    },
+    "without_skill": {
+      "pass_rate": {
+        "mean": 1.0,
+        "stddev": 0.0,
+        "min": 1.0,
+        "max": 1.0
+      },
+      "time_seconds": {
+        "mean": 362.2,
+        "stddev": 141.0935,
+        "min": 278.5,
+        "max": 525.1
+      },
+      "tokens": {
+        "mean": 92811.0,
+        "stddev": 28940.1123,
+        "min": 68756,
+        "max": 124927
+      }
+    },
+    "delta": {
+      "pass_rate": "+0.00",
+      "time_seconds": "-9.2",
+      "tokens": "-9499"
+    }
+  },
+  "notes": []
+}

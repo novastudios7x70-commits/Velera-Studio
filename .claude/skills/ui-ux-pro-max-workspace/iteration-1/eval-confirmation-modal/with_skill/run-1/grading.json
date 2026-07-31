@@ -1,0 +1,35 @@
+{
+  "expectations": [
+    {
+      "text": "Does not use the native browser confirm()/alert() for the confirmation step",
+      "passed": true,
+      "evidence": "New ConfirmDialog.tsx is a fully custom modal (role=\"alertdialog\", nova-card, escape/backdrop close); no confirm()/alert() calls anywhere in the diff."
+    },
+    {
+      "text": "Confirmation modal/dialog uses shadow-based elevation (.nova-card or equivalent shadow) rather than a plain bordered box",
+      "passed": true,
+      "evidence": "ConfirmDialog.tsx line 69: className=\"nova-card nova-fade-in relative w-full max-w-sm rounded-2xl p-6\"."
+    },
+    {
+      "text": "Action buttons reuse existing shared primitives (PrimaryButton/GhostButton) instead of raw unstyled <button>",
+      "passed": true,
+      "evidence": "Modal's Cancel/Confirm actions use GhostButton and a new DangerButton/PrimaryButton (ConfirmDialog.tsx lines 88-93). The per-row trash trigger is a raw <button>, but it's a deliberately unlabeled icon control, not a text CTA, and is fully styled with hover/focus-visible states and a 40x40px target (ProjectCard.tsx line 88-95) -- a reasonable exception, not an unstyled element."
+    },
+    {
+      "text": "The destructive confirm action has a visible pending/loading state while the delete request is in flight",
+      "passed": true,
+      "evidence": "ConfirmDialog.tsx line 92: confirm button label swaps to \"Deleting\u2026\" and both buttons are disabled while loading."
+    },
+    {
+      "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+      "passed": true,
+      "evidence": "Only new hex in globals.css is #b45309, a darker shade paired with --coral for the new danger-button gradient, following the exact same pattern already used for the primary button gradient (--violet, #0f766e)."
+    }
+  ],
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  }
+}

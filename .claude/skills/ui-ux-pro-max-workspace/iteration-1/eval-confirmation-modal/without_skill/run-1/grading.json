@@ -1,0 +1,36 @@
+{
+  "expectations": [
+    {
+      "text": "Does not use the native browser confirm()/alert() for the confirmation step",
+      "passed": true,
+      "evidence": "New ConfirmModal.tsx is a fully custom modal (role=\"alertdialog\", nova-card, escape/backdrop close); no confirm()/alert() calls anywhere in the diff."
+    },
+    {
+      "text": "Confirmation modal/dialog uses shadow-based elevation (.nova-card or equivalent shadow) rather than a plain bordered box",
+      "passed": true,
+      "evidence": "ConfirmModal.tsx line 66: className includes \"nova-modal-panel nova-card rounded-2xl px-6 py-6\"."
+    },
+    {
+      "text": "Action buttons reuse existing shared primitives (PrimaryButton/GhostButton) instead of raw unstyled <button>",
+      "passed": true,
+      "evidence": "Modal's Cancel/Confirm actions use GhostButton and a new DangerButton (ConfirmModal.tsx lines 78-83). The per-row trash trigger is a raw <button> (ProjectList.tsx line 131), styled with hover states but at only 32x32px (w-8 h-8) with no focus-visible outline -- notably weaker than the with-skill version's 40x40px + focus-visible trigger, though still has an aria-label."
+    },
+    {
+      "text": "The destructive confirm action has a visible pending/loading state while the delete request is in flight",
+      "passed": true,
+      "evidence": "ConfirmModal.tsx line 82: confirm button label swaps to \"Deleting\u2026\" and both buttons are disabled while loading."
+    },
+    {
+      "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+      "passed": true,
+      "evidence": "Only new hex in globals.css is #b3410f, a darker shade paired with --coral for the new danger-button gradient, following the same pattern already used for the primary button gradient."
+    }
+  ],
+  "grader_notes": "This baseline result is close in quality to the with-skill run -- both independently arrived at nova-card modals, DangerButton/GhostButton reuse, and a loading state, likely because CLAUDE.md's design-token section is present regardless of the skill. The clearest real gap is the smaller (32px vs 40px) icon-only delete trigger with no focus-visible state, and this baseline went further architecturally (added a real RLS delete policy migration + storage cleanup helper) which the assertions don't capture at all -- see analyst notes.",
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  }
+}

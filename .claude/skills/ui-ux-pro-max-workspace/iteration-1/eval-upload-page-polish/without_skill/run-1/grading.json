@@ -1,0 +1,36 @@
+{
+  "expectations": [
+    {
+      "text": "Headings continue to use the Outfit/display font class and body copy the Plus Jakarta Sans/root font class, not swapped or mixed arbitrarily",
+      "passed": true,
+      "evidence": "nova-display still used throughout (7 occurrences), fonts not swapped."
+    },
+    {
+      "text": "No new hardcoded hex color values are introduced outside src/lib/design-tokens.ts or globals.css",
+      "passed": true,
+      "evidence": "New CSS (.nova-chip, .nova-dropzone, .nova-icon-badge, .nova-step-track) and new Switch.tsx all reference var(--...) tokens, no new raw hex values."
+    },
+    {
+      "text": "Any new motion/animation is restrained (fade/lift-style) rather than bouncy or attention-grabbing easing",
+      "passed": true,
+      "evidence": "No new @keyframes added; existing novaFadeIn/novaPulse are the only animations present."
+    },
+    {
+      "text": "Elevation/depth changes use shadow-based styling (.nova-card pattern) rather than only heavier borders",
+      "passed": true,
+      "evidence": "5 new nova-card usages across the rebuilt page."
+    },
+    {
+      "text": "Existing shared primitives (Field, PrimaryButton, StepPill, etc.) are reused rather than reimplemented inline",
+      "passed": true,
+      "evidence": "PrimaryButton retained; a new Switch.tsx primitive was added (reasonable -- no toggle primitive existed before to reuse)."
+    }
+  ],
+  "additional_finding": "FAIL-adjacent gap not covered by the assertions above: the file dropzone is a plain <div onClick={...} onDragOver={...}> (page.tsx line 264) with no tabIndex, role=\"button\", or onKeyDown handler -- it cannot be reached or activated by keyboard alone, unlike the with-skill version's <label>-based dropzone. This is a real, concrete accessibility regression despite the otherwise strong visual polish.",
+  "summary": {
+    "passed": 5,
+    "failed": 0,
+    "total": 5,
+    "pass_rate": 1.0
+  }
+}
