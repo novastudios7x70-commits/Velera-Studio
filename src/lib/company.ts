@@ -4,8 +4,8 @@
 // it can't drift between the footer and the email templates).
 export const COMPANY = {
   legalName: "Velora Studio, Inc.",
-  supportEmail: "support@velorastudio.com",
-  privacyEmail: "privacy@velorastudio.com",
-  dmcaEmail: "dmca@velorastudio.com",
+  supportEmail: "support@veloraclips.com",
+  privacyEmail: "privacy@veloraclips.com",
+  dmcaEmail: "dmca@veloraclips.com",
   physicalAddress: "548 Market St, PMB 12345, San Francisco, CA 94104, USA",
 };
