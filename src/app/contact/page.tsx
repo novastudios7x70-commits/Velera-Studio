@@ -55,6 +55,7 @@ export default function ContactPage() {
             <div className="rounded-xl px-3.5 bg-panel border border-line">
               <textarea
                 placeholder="How many artists / channels are you managing?"
+                aria-label="How many artists / channels are you managing?"
                 rows={3}
                 value={details}
                 onChange={(e) => setDetails(e.target.value)}

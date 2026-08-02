@@ -220,6 +220,7 @@ export default function UploadPage() {
                 value={mood}
                 onChange={(e) => setMood(e.target.value)}
                 placeholder="Mood or vibe (e.g. moody, upbeat, cinematic)"
+                aria-label="Mood or vibe"
                 className="w-full rounded-xl px-4 py-3 nova-root outline-none bg-panel border border-line text-text text-[13.5px]"
               />
               <div className="grid grid-cols-2 gap-2.5">
@@ -227,12 +228,14 @@ export default function UploadPage() {
                   value={genre}
                   onChange={(e) => setGenre(e.target.value)}
                   placeholder="Genre (optional)"
+                  aria-label="Genre"
                   className="w-full rounded-xl px-4 py-3 nova-root outline-none bg-panel border border-line text-text text-[13.5px]"
                 />
                 <input
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
                   placeholder="Color palette (optional)"
+                  aria-label="Color palette"
                   className="w-full rounded-xl px-4 py-3 nova-root outline-none bg-panel border border-line text-text text-[13.5px]"
                 />
               </div>
