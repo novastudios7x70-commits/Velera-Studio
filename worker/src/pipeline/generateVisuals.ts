@@ -4,26 +4,27 @@ import type { ContentType, VisualStyle } from "../lib/database.types.js";
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
 
+const IMAGE_MODEL_ID = process.env.HIGGSFIELD_IMAGE_MODEL || "higgsfield-ai/soul/standard";
+const VIDEO_MODEL_ID = process.env.HIGGSFIELD_VIDEO_MODEL || "bytedance/seedance/v1/pro/image-to-video";
+
 /**
  * Generate-visuals path (Step 2.5) — feature-flagged behind
  * GENERATE_VISUALS_ENABLED (see CLAUDE.md: Higgsfield's redistribution
- * licensing for this product is still being finalized). The job runner never
- * calls this unless the flag is on, and it's also re-checked here so a
- * misconfigured caller can't bypass the gate.
+ * licensing for this product is still being finalized).
  *
- * Built against Higgsfield's official SDK repos (higgsfield-ai/higgsfield-js,
- * higgsfield-ai/higgsfield-client) rather than the (blocked-from-fetch) docs
- * site, since those are the most authoritative source available:
+ * Confirmed against Higgsfield's own API docs (docs.higgsfield.ai):
  *   - base URL: https://platform.higgsfield.ai
- *   - auth header: "Authorization: Key KEY_ID:KEY_SECRET" — a two-part
- *     credential (Key ID + Key Secret from the Higgsfield dashboard), not a
- *     single API key
- *   - status polling: /requests/{request_id}/status
- *   - submit request body is wrapped in an `input` object
- * The one thing those repos don't show is the exact text-to-video endpoint
- * path/model name (their public examples are all image-to-video) — that part
- * is still a best guess, kept overridable via HIGGSFIELD_T2V_MODEL so it's a
- * config change, not a redeploy, if it turns out wrong.
+ *   - submit: POST {baseURL}/{model_id} — model_id (e.g.
+ *     "higgsfield-ai/soul/standard") goes directly in the URL path, body is
+ *     flat JSON (no wrapper object)
+ *   - auth header: "Authorization: Key {key_id}:{key_secret}" — a two-part
+ *     credential, not a single API key
+ *   - status polling: GET {baseURL}/requests/{request_id}/status
+ *   - completed response has top-level "images": [{ url }] (for image
+ *     models) and/or "video": { url } (for video models)
+ * Higgsfield has no direct text-to-video model — every video model is
+ * image-to-video. So this is a real two-step pipeline: generate a still
+ * image from the mood/style prompt, then animate that image.
  */
 export async function generateVisual(params: {
   contentType: ContentType;
@@ -38,35 +39,60 @@ export async function generateVisual(params: {
     throw new Error("HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET are not configured");
   }
 
-  const authHeader = `Key ${env.higgsfieldKeyId}:${env.higgsfieldKeySecret}`;
-  const prompt = buildPrompt(params);
-  const model = process.env.HIGGSFIELD_T2V_MODEL || "seedance-v2.0-t2v";
+  const scenePrompt = buildScenePrompt(params);
+  const motionPrompt = buildMotionPrompt(params);
+  const duration = Math.min(Math.max(Math.round(params.durationSeconds), 3), 10);
 
-  const submitRes = await fetch(`${env.higgsfieldApiUrl}/v1/text2video/${model}`, {
+  const imageResult = await submitAndPoll(IMAGE_MODEL_ID, {
+    prompt: scenePrompt,
+    aspect_ratio: "9:16",
+    resolution: "720p",
+  });
+  const imageUrl = imageResult.images?.[0]?.url;
+  if (!imageUrl) {
+    throw new Error(`Higgsfield image generation completed but returned no image URL: ${JSON.stringify(imageResult).slice(0, 500)}`);
+  }
+
+  const videoResult = await submitAndPoll(VIDEO_MODEL_ID, {
+    image_url: imageUrl,
+    prompt: motionPrompt,
+    duration,
+  });
+  const videoUrl = videoResult.video?.url;
+  if (!videoUrl) {
+    throw new Error(`Higgsfield video generation completed but returned no video URL: ${JSON.stringify(videoResult).slice(0, 500)}`);
+  }
+
+  return { videoUrl };
+}
+
+type HiggsfieldCompletedResponse = {
+  status: string;
+  images?: { url: string }[];
+  video?: { url: string };
+};
+
+async function submitAndPoll(modelId: string, body: Record<string, unknown>): Promise<HiggsfieldCompletedResponse> {
+  const authHeader = `Key ${env.higgsfieldKeyId}:${env.higgsfieldKeySecret}`;
+
+  const submitRes = await fetch(`${env.higgsfieldApiUrl}/${modelId}`, {
     method: "POST",
     headers: {
       authorization: authHeader,
       "content-type": "application/json",
     },
-    body: JSON.stringify({
-      input: {
-        model,
-        prompt,
-        aspect_ratio: "9:16",
-        duration: Math.min(Math.max(Math.round(params.durationSeconds), 10), 15),
-      },
-    }),
+    body: JSON.stringify(body),
   });
 
   if (!submitRes.ok) {
-    const body = await submitRes.text().catch(() => "");
-    throw new Error(`Higgsfield generation request failed (${submitRes.status}): ${body.slice(0, 500)}`);
+    const errBody = await submitRes.text().catch(() => "");
+    throw new Error(`Higgsfield request to ${modelId} failed (${submitRes.status}): ${errBody.slice(0, 500)}`);
   }
 
-  const submitJson = (await submitRes.json()) as Record<string, unknown>;
-  const requestId = (submitJson.request_id ?? submitJson.id ?? submitJson.job_id) as string | undefined;
+  const submitJson = (await submitRes.json()) as { request_id?: string };
+  const requestId = submitJson.request_id;
   if (!requestId) {
-    throw new Error(`Higgsfield submit response had no recognizable request id: ${JSON.stringify(submitJson).slice(0, 500)}`);
+    throw new Error(`Higgsfield submit response for ${modelId} had no request_id: ${JSON.stringify(submitJson).slice(0, 500)}`);
   }
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
@@ -75,56 +101,40 @@ export async function generateVisual(params: {
       headers: { authorization: authHeader },
     });
     if (!statusRes.ok) {
-      const body = await statusRes.text().catch(() => "");
-      throw new Error(`Higgsfield status check failed (${statusRes.status}): ${body.slice(0, 500)}`);
+      const errBody = await statusRes.text().catch(() => "");
+      throw new Error(`Higgsfield status check for ${modelId} failed (${statusRes.status}): ${errBody.slice(0, 500)}`);
     }
-    const statusJson = (await statusRes.json()) as Record<string, unknown>;
-    const status = String(statusJson.status ?? "").toLowerCase();
+    const statusJson = (await statusRes.json()) as HiggsfieldCompletedResponse;
 
-    if (status === "completed") {
-      const outputUrl = extractOutputUrl(statusJson);
-      if (!outputUrl) {
-        throw new Error(`Higgsfield job completed but no output URL found: ${JSON.stringify(statusJson).slice(0, 500)}`);
-      }
-      return { videoUrl: outputUrl };
-    }
-    if (status === "failed" || status === "nsfw") {
-      throw new Error(`Higgsfield generation ${status}: ${JSON.stringify(statusJson).slice(0, 500)}`);
+    if (statusJson.status === "completed") return statusJson;
+    if (statusJson.status === "failed" || statusJson.status === "nsfw") {
+      throw new Error(`Higgsfield ${modelId} generation ${statusJson.status}: ${JSON.stringify(statusJson).slice(0, 500)}`);
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 
-  throw new Error("Higgsfield generation timed out");
+  throw new Error(`Higgsfield ${modelId} generation timed out`);
 }
 
-/** The completed-job response shape isn't confirmed, so check the common field names an API like this would plausibly use. */
-function extractOutputUrl(statusJson: Record<string, unknown>): string | null {
-  const direct = statusJson.output_url ?? statusJson.video_url ?? statusJson.url;
-  if (typeof direct === "string") return direct;
-
-  const output = statusJson.output as Record<string, unknown> | undefined;
-  if (output) {
-    const nested = output.url ?? output.video_url;
-    if (typeof nested === "string") return nested;
-    if (Array.isArray(output.videos) && typeof output.videos[0]?.url === "string") return output.videos[0].url;
-  }
-
-  const result = statusJson.result as Record<string, unknown> | undefined;
-  if (result && typeof result.url === "string") return result.url;
-
-  return null;
-}
-
-function buildPrompt(params: { contentType: ContentType; moodDescription: string | null; style: VisualStyle | null }) {
+function buildScenePrompt(params: { contentType: ContentType; moodDescription: string | null; style: VisualStyle | null }) {
   const parts: string[] = [];
   if (params.contentType === "music") {
-    parts.push("Abstract, rhythmic visuals suited to a music short-form clip.");
+    parts.push("Abstract, rhythmic scene suited to a music short-form clip.");
   } else {
-    parts.push("Clean, engaging b-roll suited to a spoken/talking-head short-form clip.");
+    parts.push("Clean, engaging b-roll scene suited to a spoken/talking-head short-form clip.");
   }
   if (params.moodDescription) parts.push(`Mood: ${params.moodDescription}.`);
   if (params.style?.genre) parts.push(`Genre reference: ${params.style.genre}.`);
   if (params.style?.color) parts.push(`Color palette: ${params.style.color}.`);
-  parts.push("Vertical 9:16 framing, no text or watermarks, cinematic quality.");
+  parts.push("Vertical 9:16 framing, no text or watermarks, cinematic quality, clear focal subject.");
+  return parts.join(" ");
+}
+
+function buildMotionPrompt(params: { contentType: ContentType; moodDescription: string | null }) {
+  const parts: string[] = ["Smooth, subtle cinematic camera motion."];
+  if (params.contentType === "music") {
+    parts.push("Motion synced to a steady rhythmic pulse.");
+  }
+  if (params.moodDescription) parts.push(`Mood: ${params.moodDescription}.`);
   return parts.join(" ");
 }
