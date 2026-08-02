@@ -60,7 +60,16 @@ export default async function PricingPage() {
                   Current plan
                 </div>
               ) : p.price ? (
-                <CheckoutButton plan={p.id as "creator" | "studio"} label="Start free trial" loggedIn={!!user} />
+                <CheckoutButton
+                  plan={p.id as "creator" | "studio"}
+                  // Logged-out clicks route to signup (the actual 3-clip,
+                  // no-card trial), so "free trial" is accurate there — but
+                  // for an already-signed-up user this button goes straight
+                  // to a paid Stripe checkout with no trial period, so
+                  // calling it a "free trial" would be misleading.
+                  label={user ? `Upgrade to ${p.name}` : "Start free trial"}
+                  loggedIn={!!user}
+                />
               ) : (
                 <Link
                   href="/contact"
