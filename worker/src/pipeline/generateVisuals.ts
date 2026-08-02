@@ -15,7 +15,9 @@ const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
  * higgsfield-ai/higgsfield-client) rather than the (blocked-from-fetch) docs
  * site, since those are the most authoritative source available:
  *   - base URL: https://platform.higgsfield.ai
- *   - auth header: "Authorization: Key <api_key>" (not Bearer)
+ *   - auth header: "Authorization: Key KEY_ID:KEY_SECRET" — a two-part
+ *     credential (Key ID + Key Secret from the Higgsfield dashboard), not a
+ *     single API key
  *   - status polling: /requests/{request_id}/status
  *   - submit request body is wrapped in an `input` object
  * The one thing those repos don't show is the exact text-to-video endpoint
@@ -32,17 +34,18 @@ export async function generateVisual(params: {
   if (!env.generateVisualsEnabled) {
     throw new Error("Generate-visuals path is disabled (GENERATE_VISUALS_ENABLED=false)");
   }
-  if (!env.higgsfieldApiKey) {
-    throw new Error("HIGGSFIELD_API_KEY is not configured");
+  if (!env.higgsfieldKeyId || !env.higgsfieldKeySecret) {
+    throw new Error("HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET are not configured");
   }
 
+  const authHeader = `Key ${env.higgsfieldKeyId}:${env.higgsfieldKeySecret}`;
   const prompt = buildPrompt(params);
   const model = process.env.HIGGSFIELD_T2V_MODEL || "seedance-v2.0-t2v";
 
   const submitRes = await fetch(`${env.higgsfieldApiUrl}/v1/text2video/${model}`, {
     method: "POST",
     headers: {
-      authorization: `Key ${env.higgsfieldApiKey}`,
+      authorization: authHeader,
       "content-type": "application/json",
     },
     body: JSON.stringify({
@@ -69,7 +72,7 @@ export async function generateVisual(params: {
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
     const statusRes = await fetch(`${env.higgsfieldApiUrl}/requests/${requestId}/status`, {
-      headers: { authorization: `Key ${env.higgsfieldApiKey}` },
+      headers: { authorization: authHeader },
     });
     if (!statusRes.ok) {
       const body = await statusRes.text().catch(() => "");

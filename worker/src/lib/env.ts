@@ -21,7 +21,13 @@ export const env = {
   anthropicApiKey: process.env.ANTHROPIC_API_KEY!,
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
   generateVisualsEnabled: process.env.GENERATE_VISUALS_ENABLED === "true",
-  higgsfieldApiKey: process.env.HIGGSFIELD_API_KEY,
+  // Higgsfield auth is a two-part credential, not a single key — the API
+  // expects "Authorization: Key KEY_ID:KEY_SECRET". Kept as two separate
+  // vars (rather than asking the user to hand-assemble "id:secret") since
+  // this project has repeatedly hit corruption from manually combining/
+  // copy-pasting credential strings.
+  higgsfieldKeyId: process.env.HIGGSFIELD_KEY_ID,
+  higgsfieldKeySecret: process.env.HIGGSFIELD_KEY_SECRET,
   higgsfieldApiUrl: process.env.HIGGSFIELD_API_URL || "https://platform.higgsfield.ai",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 2),
 };
