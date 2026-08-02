@@ -44,6 +44,8 @@ export type Profile = {
   marketing_email_consent: boolean;
   terms_accepted_at: string | null;
   created_at: string;
+  streak_count: number;
+  streak_last_active_date: string | null;
 };
 
 export type VisualStyle = {

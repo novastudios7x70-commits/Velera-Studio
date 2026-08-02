@@ -1,9 +1,22 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Music, Mic, Plus, FolderOpen, Clock, Wand2 } from "lucide-react";
+import { Music, Mic, Plus, FolderOpen, Clock, Wand2, Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import type { ContentType, VisualSource, JobStatus } from "@/lib/database.types";
+
+// streak_count only advances/resets inside create_job() when a new upload
+// happens, so a profile that's gone quiet still shows its old count until
+// the next job. Compute what the streak actually looks like right now —
+// still alive (active today or yesterday) or already lapsed — rather than
+// trusting the stored number as-is.
+function currentStreak(streakCount: number, lastActiveDate: string | null): number {
+  if (!lastActiveDate) return 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  if (lastActiveDate === today || lastActiveDate === yesterday) return streakCount;
+  return 0;
+}
 
 function timeAgo(iso: string) {
   const diffMs = Date.now() - new Date(iso).getTime();
@@ -57,6 +70,7 @@ export default async function DashboardPage() {
   const projects = jobs ?? [];
   const planLabel =
     profile?.plan === "creator" ? "Creator" : profile?.plan === "studio" ? "Studio" : profile?.plan === "agency" ? "Agency" : "Free trial";
+  const streak = profile ? currentStreak(profile.streak_count, profile.streak_last_active_date) : 0;
 
   return (
     <div className="nova-fade-in max-w-4xl mx-auto px-6 py-12 w-full">
@@ -66,6 +80,12 @@ export default async function DashboardPage() {
           <p className="text-[13.5px] text-muted">{projects.length} upload{projects.length === 1 ? "" : "s"} processed</p>
         </div>
         <div className="flex items-center gap-2">
+          {streak > 0 && (
+            <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-line nova-mono text-[12.5px] text-text">
+              <Flame size={14} className="text-coral" />
+              {streak} day{streak === 1 ? "" : "s"}
+            </div>
+          )}
           <Link href="/settings">
             <GhostButton className="px-3.5 py-2.5 text-muted text-[13.5px]">Brand kit</GhostButton>
           </Link>
