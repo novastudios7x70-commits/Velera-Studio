@@ -53,6 +53,20 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
     };
   }, [initialJob.id]);
 
+  // Realtime can silently miss an event or drop the connection — seen
+  // firsthand in production, where a finished job left this screen stuck on
+  // an old step indefinitely. Poll as a backstop so the UI always catches up
+  // within a few seconds even if the subscription never delivers.
+  useEffect(() => {
+    if (job.status === "done" || job.status === "failed") return;
+    const supabase = createClient();
+    const interval = setInterval(async () => {
+      const { data } = await supabase.from("jobs").select("*").eq("id", initialJob.id).single();
+      if (data) setJob((prev) => ({ ...prev, ...data }));
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [initialJob.id, job.status]);
+
   useEffect(() => {
     if (job.status === "done") router.replace(`/jobs/${job.id}/results`);
   }, [job.status, job.id, router]);

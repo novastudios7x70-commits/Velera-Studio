@@ -35,9 +35,9 @@ export function CheckoutButton({
         window.location.href = json.url;
         return;
       }
-      showToast(json?.error ?? `Could not start checkout (${res.status}).`);
+      showToast(json?.error ?? `Could not start checkout (${res.status}).`, "error");
     } catch {
-      showToast("Could not start checkout — please try again.");
+      showToast("Could not start checkout — please try again.", "error");
     }
     setLoading(false);
   };
@@ -55,14 +55,18 @@ export function ManageBillingButton() {
 
   const handleClick = async () => {
     setLoading(true);
-    const res = await fetch("/api/stripe/portal", { method: "POST" });
-    const json = await res.json();
-    if (json.url) {
-      window.location.href = json.url;
-    } else {
-      showToast(json.error ?? "Could not open billing portal.");
-      setLoading(false);
+    try {
+      const res = await fetch("/api/stripe/portal", { method: "POST" });
+      const json = await res.json().catch(() => null);
+      if (json?.url) {
+        window.location.href = json.url;
+        return;
+      }
+      showToast(json?.error ?? "Could not open billing portal.", "error");
+    } catch {
+      showToast("Could not open billing portal — please try again.", "error");
     }
+    setLoading(false);
   };
 
   return (

@@ -1,19 +1,21 @@
 "use client";
 
-import { Check } from "lucide-react";
+import { Check, AlertCircle } from "lucide-react";
 import { createContext, useCallback, useContext, useState } from "react";
 
+type ToastVariant = "success" | "error";
+
 interface ToastContextValue {
-  showToast: (message: string) => void;
+  showToast: (message: string, variant?: ToastVariant) => void;
 }
 
 const ToastContext = createContext<ToastContextValue | null>(null);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const [toast, setToast] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ message: string; variant: ToastVariant } | null>(null);
 
-  const showToast = useCallback((message: string) => {
-    setToast(message);
+  const showToast = useCallback((message: string, variant: ToastVariant = "success") => {
+    setToast({ message, variant });
     setTimeout(() => setToast(null), 2400);
   }, []);
 
@@ -21,8 +23,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={{ showToast }}>
       {children}
       {toast && (
-        <div className="nova-fade-in fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl flex items-center gap-2 bg-panel border border-violet text-text text-[13px]">
-          <Check size={14} className="text-violet" /> {toast}
+        <div
+          className={`nova-fade-in fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl flex items-center gap-2 bg-panel border text-text text-[13px] ${
+            toast.variant === "error" ? "border-coral" : "border-violet"
+          }`}
+        >
+          {toast.variant === "error" ? (
+            <AlertCircle size={14} className="text-coral shrink-0" />
+          ) : (
+            <Check size={14} className="text-violet shrink-0" />
+          )}
+          {toast.message}
         </div>
       )}
     </ToastContext.Provider>
