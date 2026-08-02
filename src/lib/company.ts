@@ -3,7 +3,7 @@
 // address in every marketing email; keeping one source of truth here means
 // it can't drift between the footer and the email templates).
 export const COMPANY = {
-  legalName: "Velora Studio, Inc.",
+  legalName: "Velora Studio",
   supportEmail: "support@veloraclips.com",
   privacyEmail: "privacy@veloraclips.com",
   dmcaEmail: "dmca@veloraclips.com",
