@@ -59,7 +59,15 @@ export async function renderClip(params: {
       .setStartTime(startSec)
       .setDuration(duration)
       .videoFilters(vf)
-      .outputOptions(["-c:v", "libx264", "-preset", "veryfast", "-crf", "21", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart"])
+      .outputOptions([
+        "-c:v", "libx264",
+        "-preset", "ultrafast", // lower memory/CPU footprint than veryfast — matters on constrained worker instances
+        "-threads", "1", // bounds x264's per-thread frame buffers, the main driver of encode-time memory use
+        "-crf", "23",
+        "-c:a", "aac",
+        "-b:a", "128k",
+        "-movflags", "+faststart",
+      ])
       .output(outputPath)
       .on("end", () => resolve())
       .on("error", (err) => reject(err))
@@ -96,8 +104,9 @@ export async function renderClipWithAudioTrack(params: {
         "-map", "0:v:0",
         "-map", "1:a:0",
         "-c:v", "libx264",
-        "-preset", "veryfast",
-        "-crf", "21",
+        "-preset", "ultrafast", // lower memory/CPU footprint than veryfast — matters on constrained worker instances
+        "-threads", "1", // bounds x264's per-thread frame buffers, the main driver of encode-time memory use
+        "-crf", "23",
         "-c:a", "aac",
         "-b:a", "128k",
         "-shortest",
