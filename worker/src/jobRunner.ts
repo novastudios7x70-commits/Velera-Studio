@@ -170,7 +170,7 @@ async function runPipeline(
       },
     ];
   } else {
-    segments = await selectSegments(upload.content_type, scopedTranscript, scopedAnalysis);
+    segments = await selectSegments(upload.content_type, scopedTranscript, scopedAnalysis, selectionWindow);
     const preFilterCount = segments.length;
     segments = segments.filter((s) => s.end_time <= selectionWindow + 0.5);
     if (segments.length === 0) {
