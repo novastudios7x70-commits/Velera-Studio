@@ -7,7 +7,7 @@ import { createAdminClient } from "./lib/supabase.js";
 import { transcribeAudio } from "./pipeline/transcribe.js";
 import { analyzeAudio } from "./pipeline/audioAnalysis.js";
 import { generateVisual } from "./pipeline/generateVisuals.js";
-import { selectSegments } from "./pipeline/selectSegments.js";
+import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
 import {
   PINTEREST_TARGET,
@@ -156,15 +156,32 @@ async function runPipeline(
       ? { ...audioAnalysis, windows: audioAnalysis.windows.filter((w) => w.end <= selectionWindow) }
       : audioAnalysis;
 
-  let segments = await selectSegments(upload.content_type, scopedTranscript, scopedAnalysis);
-  const preFilterCount = segments.length;
-  segments = segments.filter((s) => s.end_time <= selectionWindow + 0.5);
+  let segments: SelectedSegment[];
+  if (selectionWindow < MIN_CLIP_SECONDS) {
+    // Too short to search for a hook moment within — there's no room for a
+    // sub-clip that meets the minimum length, so just use the whole thing.
+    segments = [
+      {
+        start_time: 0,
+        end_time: selectionWindow,
+        hook_type: upload.content_type === "music" ? "chorus" : "emotional",
+        suggested_caption: "the whole moment",
+        confidence: 100,
+      },
+    ];
+  } else {
+    segments = await selectSegments(upload.content_type, scopedTranscript, scopedAnalysis);
+    const preFilterCount = segments.length;
+    segments = segments.filter((s) => s.end_time <= selectionWindow + 0.5);
+    if (segments.length === 0) {
+      console.log(
+        `[job ${job.id}] zero segments: contentType=${upload.content_type} sourceDuration=${sourceDuration} selectionWindow=${selectionWindow} preFilterCount=${preFilterCount} transcriptWords=${scopedTranscript?.words.length ?? "n/a"} analysisWindows=${scopedAnalysis?.windows.length ?? "n/a"}`,
+      );
+    }
+  }
   await supabase.from("jobs").update({ selected_segments: segments }).eq("id", job.id);
 
   if (segments.length === 0) {
-    console.log(
-      `[job ${job.id}] zero segments: contentType=${upload.content_type} sourceDuration=${sourceDuration} selectionWindow=${selectionWindow} preFilterCount=${preFilterCount} transcriptWords=${scopedTranscript?.words.length ?? "n/a"} analysisWindows=${scopedAnalysis?.windows.length ?? "n/a"}`,
-    );
     throw new Error("No hook-worthy segments were found in this upload");
   }
 

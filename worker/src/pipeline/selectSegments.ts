@@ -23,7 +23,7 @@ const responseSchema = z.object({ segments: z.array(segmentSchema).min(1).max(5)
 
 const anthropic = new Anthropic({ apiKey: env.anthropicApiKey });
 
-const MIN_CLIP_SECONDS = 12;
+export const MIN_CLIP_SECONDS = 12;
 const MAX_CLIP_SECONDS = 45;
 
 function buildPrompt(contentType: ContentType, transcript: Transcript | null, audioAnalysis: AudioAnalysis | null) {
