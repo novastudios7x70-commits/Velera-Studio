@@ -7,5 +7,5 @@ export const COMPANY = {
   supportEmail: "support@veloraclips.com",
   privacyEmail: "privacy@veloraclips.com",
   dmcaEmail: "dmca@veloraclips.com",
-  physicalAddress: "548 Market St, PMB 12345, San Francisco, CA 94104, USA",
+  physicalAddress: "1104 Killian Dr, Mansfield, TX 76063, USA",
 };
