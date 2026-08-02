@@ -92,9 +92,12 @@ Source of truth: `src/lib/design-tokens.ts` + `src/app/globals.css`.
 
 ## Feature flag: generate-visuals path
 
-Higgsfield's redistribution licensing wasn't finalized when this was built.
-The path is fully implemented, not stubbed — but gated behind **two** flags
-that must both be on:
+Higgsfield's redistribution licensing was unconfirmed when this was built,
+so the path was gated behind two flags until that was resolved — **it now
+has been confirmed** (commercial redistribution of Higgsfield-generated
+output is allowed), so both flags are meant to be `true` in production. The
+flags themselves stay in place as the on/off switch for this feature, just
+no longer defaulting to off:
 
 - `GENERATE_VISUALS_ENABLED` (server) — `src/app/api/jobs/route.ts` rejects
   `visual_source: "generate"` requests when this is off, and the worker's
@@ -103,8 +106,13 @@ that must both be on:
   the "Generate for me" option in the UI when this is off, rather than
   leaving it clickable and failing.
 
-Keep both `false` in any environment pointed at real users until licensing
-is confirmed. Flipping them on is a config change, not a deploy.
+Real API contract (confirmed against Higgsfield's own docs, see
+`worker/src/pipeline/generateVisuals.ts`): there is no direct text-to-video
+model, so this is a two-step pipeline — a still image is generated from the
+mood/style/prompt first, then animated. Both steps are billed per job, not
+per output clip (all 3-5 clips a job produces share the one generated
+visual), so cost scales with how many times a user invokes generate-for-me,
+not with clip count.
 
 ## Competitive positioning — check every decision against this
 
