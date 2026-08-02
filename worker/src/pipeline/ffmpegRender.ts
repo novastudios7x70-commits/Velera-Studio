@@ -75,7 +75,20 @@ export async function renderClip(params: {
   });
 }
 
-/** Silent-audio variant for generated-visual clips with no source audio track to preserve. */
+/**
+ * Silent-source variant for generated-visual clips with no source audio
+ * track to preserve — cuts the segment's audio from the original upload but
+ * pairs it with the (much shorter) Higgsfield-generated visual.
+ *
+ * The visual input is looped indefinitely (-stream_loop -1) since the
+ * generated clip is only a few seconds long while segments can start
+ * anywhere up to GENERATED_VISUAL_MAX_SECONDS into the source; without
+ * looping, a segment starting past the generated clip's own length would
+ * have no video left to seek into. The seek/duration are applied as output
+ * options (not input-side .setStartTime) specifically so they land on the
+ * looped/decoded stream rather than trying to fast-seek a single short file
+ * past its own end.
+ */
 export async function renderClipWithAudioTrack(params: {
   inputPath: string;
   audioPath: string;
@@ -97,9 +110,10 @@ export async function renderClipWithAudioTrack(params: {
   await new Promise<void>((resolve, reject) => {
     ffmpeg()
       .input(inputPath)
+      .inputOptions(["-stream_loop", "-1"])
       .input(audioPath)
-      .setStartTime(startSec)
       .outputOptions([
+        "-ss", String(startSec),
         "-t", String(duration),
         "-map", "0:v:0",
         "-map", "1:a:0",

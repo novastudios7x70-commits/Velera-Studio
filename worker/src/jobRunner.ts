@@ -22,7 +22,13 @@ import { uploadClipAsset } from "./pipeline/uploadOutputs.js";
 import type { Database, Job, SelectedSegment, Upload } from "./lib/database.types.js";
 
 const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as const;
-const GENERATED_VISUAL_MAX_SECONDS = 15;
+// Must stay >= selectSegments.ts's MIN_CLIP_SECONDS (12) with real slack —
+// too tight a window leaves the segment selector almost no room to find a
+// segment that's both long enough and fully inside the window, and this
+// project's confirmed the empty-result failure mode firsthand. The
+// generated visual clip itself loops (see renderClipWithAudioTrack) so it
+// doesn't need to natively cover the whole window either.
+const GENERATED_VISUAL_MAX_SECONDS = 45;
 
 function probeDuration(filePath: string): Promise<number> {
   return new Promise((resolve, reject) => {
