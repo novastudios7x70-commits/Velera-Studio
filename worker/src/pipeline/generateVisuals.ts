@@ -118,6 +118,10 @@ async function submitAndPoll(modelId: string, body: Record<string, unknown>): Pr
 
 function buildScenePrompt(params: { contentType: ContentType; moodDescription: string | null; style: VisualStyle | null }) {
   const parts: string[] = [];
+  // A user-provided description takes priority over the generic scaffolding
+  // below — it's the closest thing to direct creative control we offer, so
+  // it leads the prompt instead of getting buried after boilerplate.
+  if (params.style?.prompt) parts.push(`${params.style.prompt}.`);
   if (params.contentType === "music") {
     parts.push("Abstract, rhythmic scene suited to a music short-form clip.");
   } else {

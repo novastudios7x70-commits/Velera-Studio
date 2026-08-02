@@ -23,6 +23,7 @@ export default function UploadPage() {
   const [visualSource, setVisualSource] = useState<VisualSource | null>(null);
   const [beatSync, setBeatSync] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [prompt, setPrompt] = useState("");
   const [mood, setMood] = useState("");
   const [genre, setGenre] = useState("");
   const [color, setColor] = useState("");
@@ -83,7 +84,7 @@ export default function UploadPage() {
           beat_sync_enabled: beatSync,
           visual_style:
             visualSource === "generate"
-              ? { mood: mood || undefined, genre: genre || undefined, color: color || undefined }
+              ? { prompt: prompt || undefined, mood: mood || undefined, genre: genre || undefined, color: color || undefined }
               : undefined,
         }),
       });
@@ -203,6 +204,18 @@ export default function UploadPage() {
 
           {visualSource === "generate" && (
             <div className="flex flex-col gap-2.5 mb-4">
+              <div>
+                <label className="block text-[13px] text-text mb-1.5">Describe what you want (optional)</label>
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="e.g. a rooftop at golden hour, city skyline in the background, warm cinematic lighting"
+                  rows={3}
+                  maxLength={400}
+                  className="w-full rounded-xl px-4 py-3 nova-root outline-none bg-panel border border-line text-text text-[13.5px] resize-none"
+                />
+                <div className="text-[11.5px] text-muted mt-1">The more specific, the closer the AI-generated visual matches what you're picturing.</div>
+              </div>
               <input
                 value={mood}
                 onChange={(e) => setMood(e.target.value)}

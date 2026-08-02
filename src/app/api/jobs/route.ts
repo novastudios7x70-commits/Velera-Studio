@@ -11,7 +11,12 @@ const bodySchema = z.object({
   mood_description: z.string().max(500).optional(),
   beat_sync_enabled: z.boolean().default(false),
   visual_style: z
-    .object({ mood: z.string().max(80).optional(), genre: z.string().max(80).optional(), color: z.string().max(40).optional() })
+    .object({
+      prompt: z.string().max(400).optional(),
+      mood: z.string().max(80).optional(),
+      genre: z.string().max(80).optional(),
+      color: z.string().max(40).optional(),
+    })
     .optional(),
 });
 

@@ -47,6 +47,7 @@ export type Profile = {
 };
 
 export type VisualStyle = {
+  prompt?: string;
   mood?: string;
   genre?: string;
   color?: string;
