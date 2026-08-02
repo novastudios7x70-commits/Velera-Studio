@@ -157,10 +157,14 @@ async function runPipeline(
       : audioAnalysis;
 
   let segments = await selectSegments(upload.content_type, scopedTranscript, scopedAnalysis);
+  const preFilterCount = segments.length;
   segments = segments.filter((s) => s.end_time <= selectionWindow + 0.5);
   await supabase.from("jobs").update({ selected_segments: segments }).eq("id", job.id);
 
   if (segments.length === 0) {
+    console.log(
+      `[job ${job.id}] zero segments: contentType=${upload.content_type} sourceDuration=${sourceDuration} selectionWindow=${selectionWindow} preFilterCount=${preFilterCount} transcriptWords=${scopedTranscript?.words.length ?? "n/a"} analysisWindows=${scopedAnalysis?.windows.length ?? "n/a"}`,
+    );
     throw new Error("No hook-worthy segments were found in this upload");
   }
 
