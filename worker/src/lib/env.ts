@@ -22,6 +22,6 @@ export const env = {
   anthropicModel: process.env.ANTHROPIC_MODEL || "claude-sonnet-4-5",
   generateVisualsEnabled: process.env.GENERATE_VISUALS_ENABLED === "true",
   higgsfieldApiKey: process.env.HIGGSFIELD_API_KEY,
-  higgsfieldApiUrl: process.env.HIGGSFIELD_API_URL || "https://api.higgsfield.ai",
+  higgsfieldApiUrl: process.env.HIGGSFIELD_API_URL || "https://platform.higgsfield.ai",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 2),
 };
