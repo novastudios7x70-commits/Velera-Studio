@@ -7,6 +7,7 @@ import { createAdminClient } from "./lib/supabase.js";
 import { transcribeAudio } from "./pipeline/transcribe.js";
 import { analyzeAudio } from "./pipeline/audioAnalysis.js";
 import { generateVisual } from "./pipeline/generateVisuals.js";
+import { generateVoiceover } from "./pipeline/tts.js";
 import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
 import {
@@ -90,11 +91,35 @@ async function runPipeline(
   upload: Upload,
   workDir: string,
 ): Promise<void> {
-  // --- Step 1 (already done at upload time) — download the source file ---
-  const { data: fileBlob, error: downloadError } = await supabase.storage.from("uploads").download(upload.file_url);
-  if (downloadError || !fileBlob) throw new Error("Could not download uploaded file from storage");
-  const sourceBytes = Buffer.from(await fileBlob.arrayBuffer());
-  const sourcePath = path.join(workDir, `source${path.extname(upload.file_name) || ""}`);
+  // --- Step 1: source audio — either the already-uploaded file, or a
+  // voiceover generated from a typed script ---
+  let sourceBytes: Buffer;
+  let sourceExt: string;
+
+  if (upload.audio_source === "tts") {
+    await setStatus(supabase, job.id, "generating_voiceover");
+    if (!upload.script_text || !upload.tts_voice_id) {
+      throw new Error("TTS upload is missing script_text or tts_voice_id");
+    }
+    sourceBytes = await generateVoiceover(upload.script_text, upload.tts_voice_id);
+    sourceExt = ".mp3";
+
+    // Re-host in our own storage (same reasoning as the generated-visual
+    // path) so there's a durable record independent of ElevenLabs' own
+    // retention, and so file_url is populated for anything downstream that
+    // expects it.
+    const rehostPath = `${upload.user_id}/tts/${job.id}.mp3`;
+    await supabase.storage.from("uploads").upload(rehostPath, sourceBytes, { contentType: "audio/mpeg", upsert: true });
+    await supabase.from("uploads").update({ file_url: rehostPath }).eq("id", upload.id);
+  } else {
+    if (!upload.file_url) throw new Error("Upload is missing file_url");
+    const { data: fileBlob, error: downloadError } = await supabase.storage.from("uploads").download(upload.file_url);
+    if (downloadError || !fileBlob) throw new Error("Could not download uploaded file from storage");
+    sourceBytes = Buffer.from(await fileBlob.arrayBuffer());
+    sourceExt = path.extname(upload.file_name) || "";
+  }
+
+  const sourcePath = path.join(workDir, `source${sourceExt}`);
   await writeFile(sourcePath, sourceBytes);
   const sourceDuration = await probeDuration(sourcePath);
 

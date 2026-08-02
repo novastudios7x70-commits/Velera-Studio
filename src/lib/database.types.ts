@@ -14,8 +14,10 @@
 export type Plan = "trial" | "creator" | "studio" | "agency";
 export type ContentType = "music" | "spoken";
 export type VisualSource = "has" | "generate";
+export type AudioSource = "upload" | "tts";
 export type JobStatus =
   | "queued"
+  | "generating_voiceover"
   | "analyzing"
   | "generating_visuals"
   | "selecting"
@@ -58,13 +60,16 @@ export type VisualStyle = {
 export type Upload = {
   id: string;
   user_id: string;
-  file_url: string;
+  file_url: string | null;
   file_name: string;
   content_type: ContentType;
   visual_source: VisualSource;
   mood_description: string | null;
   beat_sync_enabled: boolean;
   visual_style: VisualStyle | null;
+  audio_source: AudioSource;
+  script_text: string | null;
+  tts_voice_id: string | null;
   created_at: string;
 };
 

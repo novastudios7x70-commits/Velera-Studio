@@ -29,5 +29,7 @@ export const env = {
   higgsfieldKeyId: process.env.HIGGSFIELD_KEY_ID,
   higgsfieldKeySecret: process.env.HIGGSFIELD_KEY_SECRET,
   higgsfieldApiUrl: process.env.HIGGSFIELD_API_URL || "https://platform.higgsfield.ai",
+  elevenLabsApiKey: process.env.ELEVENLABS_API_KEY,
+  elevenLabsApiUrl: process.env.ELEVENLABS_API_URL || "https://api.elevenlabs.io",
   workerConcurrency: Number(process.env.WORKER_CONCURRENCY || 2),
 };

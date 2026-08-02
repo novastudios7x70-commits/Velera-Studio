@@ -3,22 +3,35 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getPipelineQueue } from "@/lib/queue";
 
-const bodySchema = z.object({
-  file_path: z.string().min(1),
-  file_name: z.string().min(1),
-  content_type: z.enum(["music", "spoken"]),
-  visual_source: z.enum(["has", "generate"]),
-  mood_description: z.string().max(500).optional(),
-  beat_sync_enabled: z.boolean().default(false),
-  visual_style: z
-    .object({
-      prompt: z.string().max(400).optional(),
-      mood: z.string().max(80).optional(),
-      genre: z.string().max(80).optional(),
-      color: z.string().max(40).optional(),
-    })
-    .optional(),
-});
+const bodySchema = z
+  .object({
+    content_type: z.enum(["music", "spoken"]),
+    visual_source: z.enum(["has", "generate"]),
+    mood_description: z.string().max(500).optional(),
+    beat_sync_enabled: z.boolean().default(false),
+    visual_style: z
+      .object({
+        prompt: z.string().max(400).optional(),
+        mood: z.string().max(80).optional(),
+        genre: z.string().max(80).optional(),
+        color: z.string().max(40).optional(),
+      })
+      .optional(),
+    audio_source: z.enum(["upload", "tts"]).default("upload"),
+    // "upload" path
+    file_path: z.string().min(1).optional(),
+    file_name: z.string().min(1).optional(),
+    // "tts" path — a typed script instead of a recording
+    script_text: z.string().min(1).max(2000).optional(),
+    tts_voice_id: z.string().min(1).optional(),
+  })
+  .refine(
+    (data) =>
+      data.audio_source === "upload"
+        ? !!data.file_path && !!data.file_name
+        : !!data.script_text && !!data.tts_voice_id,
+    { message: "Missing required fields for the selected audio source." },
+  );
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -44,19 +57,31 @@ export async function POST(request: Request) {
     );
   }
 
+  if (body.audio_source === "tts" && process.env.TTS_ENABLED !== "true") {
+    return NextResponse.json(
+      { error: "AI voiceover isn't available right now — please upload a recording instead." },
+      { status: 403 },
+    );
+  }
+
   // 1. Record the upload. RLS ("own uploads") requires user_id = auth.uid(),
   // which this server client satisfies since it's bound to the caller's session.
+  const isTts = body.audio_source === "tts";
+  const scriptPreview = body.script_text && body.script_text.length > 60 ? `${body.script_text.slice(0, 60)}…` : body.script_text;
   const { data: upload, error: uploadError } = await supabase
     .from("uploads")
     .insert({
       user_id: user.id,
-      file_url: body.file_path,
-      file_name: body.file_name,
+      file_url: isTts ? null : (body.file_path ?? null),
+      file_name: isTts ? `AI voiceover — ${scriptPreview}` : body.file_name!,
       content_type: body.content_type,
       visual_source: body.visual_source,
       mood_description: body.mood_description ?? null,
       beat_sync_enabled: body.content_type === "music" ? body.beat_sync_enabled : false,
       visual_style: body.visual_source === "generate" ? body.visual_style ?? null : null,
+      audio_source: body.audio_source,
+      script_text: isTts ? body.script_text! : null,
+      tts_voice_id: isTts ? body.tts_voice_id! : null,
     })
     .select()
     .single();

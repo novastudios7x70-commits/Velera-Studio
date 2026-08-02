@@ -6,16 +6,18 @@ import { Loader2, AlertTriangle } from "lucide-react";
 import { StepPill } from "@/components/ui/StepPill";
 import { GhostButton } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
-import type { ContentType, Job, JobStatus, VisualSource } from "@/lib/database.types";
+import type { AudioSource, ContentType, Job, JobStatus, VisualSource } from "@/lib/database.types";
 
 type JobWithUpload = Job & {
-  upload: { file_name: string; content_type: ContentType; visual_source: VisualSource } | null;
+  upload: { file_name: string; content_type: ContentType; visual_source: VisualSource; audio_source: AudioSource } | null;
 };
 
-function stepsFor(contentType: ContentType, visualSource: VisualSource): { status: JobStatus; label: string }[] {
-  const steps: { status: JobStatus; label: string }[] = [
-    { status: "analyzing", label: contentType === "spoken" ? "Transcribing audio" : "Analyzing energy & mood" },
-  ];
+function stepsFor(contentType: ContentType, visualSource: VisualSource, audioSource: AudioSource): { status: JobStatus; label: string }[] {
+  const steps: { status: JobStatus; label: string }[] = [];
+  if (audioSource === "tts") {
+    steps.push({ status: "generating_voiceover", label: "Generating voiceover" });
+  }
+  steps.push({ status: "analyzing", label: contentType === "spoken" ? "Transcribing audio" : "Analyzing energy & mood" });
   if (visualSource === "generate") {
     steps.push({ status: "generating_visuals", label: "Generating matching visuals" });
   }
@@ -28,7 +30,7 @@ function stepsFor(contentType: ContentType, visualSource: VisualSource): { statu
 }
 
 const STATUS_ORDER: JobStatus[] = [
-  "queued", "analyzing", "generating_visuals", "selecting", "cutting", "captioning", "done",
+  "queued", "generating_voiceover", "analyzing", "generating_visuals", "selecting", "cutting", "captioning", "done",
 ];
 
 export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
@@ -90,7 +92,7 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
     );
   }
 
-  const steps = stepsFor(job.upload.content_type, job.upload.visual_source);
+  const steps = stepsFor(job.upload.content_type, job.upload.visual_source, job.upload.audio_source);
   const currentIdx = STATUS_ORDER.indexOf(job.status);
   const pct = Math.min(100, Math.round(((currentIdx + 1) / (STATUS_ORDER.length - 1)) * 100));
 

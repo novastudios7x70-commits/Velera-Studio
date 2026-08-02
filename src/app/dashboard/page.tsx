@@ -31,6 +31,7 @@ function timeAgo(iso: string) {
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   queued: "Queued",
+  generating_voiceover: "Generating voiceover",
   analyzing: "Analyzing",
   generating_visuals: "Generating visuals",
   selecting: "Selecting moments",

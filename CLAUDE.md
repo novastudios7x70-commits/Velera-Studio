@@ -27,6 +27,8 @@ two visual paths (has footage / generate for me).
 - **Payments**: Stripe (Checkout for upgrades, Billing Portal for self-serve
   cancel — see `src/app/api/stripe/*`).
 - **Transcription**: AssemblyAI (`worker/src/pipeline/transcribe.ts`).
+- **Text-to-speech**: ElevenLabs, feature-flagged (see below) —
+  `worker/src/pipeline/tts.ts`.
 - **Audio analysis / beat detection**: librosa via a Python subprocess
   (`worker/scripts/audio_analysis.py`), invoked from
   `worker/src/pipeline/audioAnalysis.ts`.
@@ -113,6 +115,37 @@ mood/style/prompt first, then animated. Both steps are billed per job, not
 per output clip (all 3-5 clips a job produces share the one generated
 visual), so cost scales with how many times a user invokes generate-for-me,
 not with clip count.
+
+## Feature flag: text-to-speech (AI voiceover) path
+
+Lets a user type a script instead of uploading a recording — only offered
+for `content_type: "spoken"` (a script isn't meaningful for music). Same
+dual-flag pattern as generate-visuals, gated because it's a new paid-API-cost
+path, not for any licensing reason:
+
+- `TTS_ENABLED` (server) — `src/app/api/jobs/route.ts` rejects
+  `audio_source: "tts"` requests when this is off.
+- `NEXT_PUBLIC_TTS_ENABLED` (client) — the upload flow only shows the
+  "Write a script" toggle when this is on.
+
+Shape of the feature: `uploads.audio_source` (`'upload' | 'tts'`) plus
+`script_text`/`tts_voice_id` when it's `'tts'` — `file_url` is nullable to
+allow this, enforced by a check constraint
+(`uploads_source_consistency` in `0006_tts.sql`) rather than at the
+application layer alone. The worker's first pipeline step
+(`worker/src/pipeline/tts.ts`) calls ElevenLabs' plain synchronous
+text-to-speech endpoint (`POST /v1/text-to-speech/{voice_id}`, one
+well-documented call, no polling) to get the voiceover audio, re-hosts it in
+the `uploads` bucket the same way generated visuals are re-hosted, and then
+feeds it into the **existing, already-proven** spoken-content pipeline
+(AssemblyAI transcription, LLM segment selection, ffmpeg render) completely
+unchanged — deliberately not using ElevenLabs' timestamped-output variant,
+to avoid re-deriving word timings from an unfamiliar, less-common endpoint
+shape. `jobs.status` has a matching `generating_voiceover` state so the
+processing screen shows a real step for it, ordered before `analyzing`.
+Voice options are fetched live from `GET /api/tts/voices`, a thin
+server-side proxy over ElevenLabs' `GET /v1/voices` — the API key never
+reaches the browser.
 
 ## Competitive positioning — check every decision against this
 

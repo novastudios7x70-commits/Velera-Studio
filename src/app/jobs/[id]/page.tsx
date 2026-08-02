@@ -12,7 +12,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
   const { data: job } = await supabase
     .from("jobs")
-    .select("*, upload:uploads(file_name, content_type, visual_source)")
+    .select("*, upload:uploads(file_name, content_type, visual_source, audio_source)")
     .eq("id", id)
     .single();
 
