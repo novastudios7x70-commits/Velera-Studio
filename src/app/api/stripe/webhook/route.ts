@@ -35,10 +35,18 @@ export async function POST(request: Request) {
         const session = event.data.object as Stripe.Checkout.Session;
         const userId = session.client_reference_id ?? session.metadata?.user_id;
         const plan = session.metadata?.plan as "creator" | "studio" | undefined;
-        if (!userId || !plan || !session.customer || !session.subscription) break;
+        if (!userId || !plan || !session.customer || !session.subscription) {
+          console.error(
+            `[stripe webhook] checkout.session.completed missing required fields — userId=${userId} plan=${plan} customer=${session.customer} subscription=${session.subscription}`,
+          );
+          break;
+        }
 
         const planDef = PLANS.find((p) => p.id === plan);
-        await supabase
+        if (!planDef) {
+          console.error(`[stripe webhook] no PLANS entry found for plan="${plan}"`);
+        }
+        const { error: updateError } = await supabase
           .from("profiles")
           .update({
             plan,
@@ -52,6 +60,9 @@ export async function POST(request: Request) {
             stripe_subscription_status: "active",
           })
           .eq("id", userId);
+        if (updateError) {
+          console.error(`[stripe webhook] profile update failed for userId=${userId}:`, updateError);
+        }
         break;
       }
 
