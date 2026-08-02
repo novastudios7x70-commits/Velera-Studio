@@ -5,7 +5,7 @@ const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
 
 const IMAGE_MODEL_ID = process.env.HIGGSFIELD_IMAGE_MODEL || "higgsfield-ai/soul/standard";
-const VIDEO_MODEL_ID = process.env.HIGGSFIELD_VIDEO_MODEL || "bytedance/seedance/v1/pro/image-to-video";
+const VIDEO_MODEL_ID = process.env.HIGGSFIELD_VIDEO_MODEL || "higgsfield-ai/dop/standard";
 
 /**
  * Generate-visuals path (Step 2.5) — feature-flagged behind
