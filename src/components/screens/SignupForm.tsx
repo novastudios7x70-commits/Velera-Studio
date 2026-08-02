@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, Mail, Lock, MailCheck } from "lucide-react";
+import { ArrowLeft, Mail, Lock, MailCheck, User } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 import { signUpAction, type AuthActionState } from "@/lib/auth-actions";
@@ -41,7 +41,7 @@ export function SignupForm() {
       <p className="mb-7 text-[13.5px] text-muted">No credit card. No time limit — use them whenever.</p>
 
       <form action={formAction} className="flex flex-col gap-3">
-        <Field icon={Mail} name="name" placeholder="Your name" autoComplete="name" />
+        <Field icon={User} name="name" placeholder="Your name" autoComplete="name" />
         <Field icon={Mail} type="email" name="email" placeholder="you@email.com" required autoComplete="email" />
         <Field icon={Lock} type="password" name="password" placeholder="Password (min. 8 characters)" required minLength={8} autoComplete="new-password" />
 

@@ -7,7 +7,13 @@ import { Mail } from "lucide-react";
 import { useToast } from "@/components/ui/Toast";
 import type { Profile } from "@/lib/database.types";
 
-const COLORS = ["#14B8A6", "#F5A524", "#4ADE80", "#38BDF8", "#F472B6"];
+const COLORS = [
+  { hex: "#14B8A6", name: "Teal" },
+  { hex: "#F5A524", name: "Amber" },
+  { hex: "#4ADE80", name: "Green" },
+  { hex: "#38BDF8", name: "Sky blue" },
+  { hex: "#F472B6", name: "Pink" },
+];
 
 export function BrandKitForm({ profile }: { profile: Profile }) {
   const [name, setName] = useState(profile.display_name ?? "");
@@ -16,12 +22,20 @@ export function BrandKitForm({ profile }: { profile: Profile }) {
   const { showToast } = useToast();
 
   const save = async (patch: Record<string, unknown>) => {
-    await fetch("/api/profile", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    showToast("Saved");
+    try {
+      const res = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      if (!res.ok) {
+        showToast("Could not save — please try again.", "error");
+        return;
+      }
+      showToast("Saved");
+    } catch {
+      showToast("Could not save — please try again.", "error");
+    }
   };
 
   return (
@@ -42,15 +56,17 @@ export function BrandKitForm({ profile }: { profile: Profile }) {
         <div className="flex gap-2.5">
           {COLORS.map((c) => (
             <button
-              key={c}
+              key={c.hex}
               onClick={() => {
-                setColor(c);
-                save({ brand_color: c });
+                setColor(c.hex);
+                save({ brand_color: c.hex });
               }}
+              aria-label={c.name}
+              aria-pressed={color === c.hex}
               className="w-9 h-9 rounded-full flex items-center justify-center"
-              style={{ background: c, border: color === c ? "2px solid white" : "2px solid transparent" }}
+              style={{ background: c.hex, border: color === c.hex ? "2px solid white" : "2px solid transparent" }}
             >
-              {color === c && <Check size={14} color="#0a0a0e" />}
+              {color === c.hex && <Check size={14} color="#0a0a0e" />}
             </button>
           ))}
         </div>

@@ -83,7 +83,7 @@ export default function Home() {
       <div id="how-it-works" className="max-w-4xl mx-auto px-6 py-16 w-full scroll-mt-20">
         <div className="text-center mb-10">
           <h2 className="nova-display font-semibold mb-1.5 text-[24px] text-text">How it works</h2>
-          <p className="text-[14px] text-muted">One upload, five real pipeline steps — no fake progress bars.</p>
+          <p className="text-[14px] text-muted">One upload, five steps, straight to platform-ready clips.</p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
           {STEPS.map((s, i) => (

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Mail, Check } from "lucide-react";
+import { ArrowLeft, Mail, User, Building2, Check } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 
@@ -18,16 +18,20 @@ export default function ContactPage() {
   const handleSubmit = async () => {
     setSubmitting(true);
     setError(null);
-    const res = await fetch("/api/contact", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, company, email, details }),
-    });
-    if (res.ok) {
-      setSent(true);
-    } else {
-      const json = await res.json().catch(() => ({}));
-      setError(json.error ?? "Something went wrong — please try again.");
+    try {
+      const res = await fetch("/api/contact", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, company, email, details }),
+      });
+      if (res.ok) {
+        setSent(true);
+      } else {
+        const json = await res.json().catch(() => ({}));
+        setError(json.error ?? "Something went wrong — please try again.");
+      }
+    } catch {
+      setError("Something went wrong — please try again.");
     }
     setSubmitting(false);
   };
@@ -45,8 +49,8 @@ export default function ContactPage() {
             For labels, agencies, and teams managing multiple artists or channels.
           </p>
           <div className="flex flex-col gap-3 mb-5">
-            <Field icon={Mail} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
-            <Field icon={Mail} placeholder="Company" value={company} onChange={(e) => setCompany(e.target.value)} />
+            <Field icon={User} placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} />
+            <Field icon={Building2} placeholder="Company" value={company} onChange={(e) => setCompany(e.target.value)} />
             <Field icon={Mail} type="email" placeholder="Work email" value={email} onChange={(e) => setEmail(e.target.value)} />
             <div className="rounded-xl px-3.5 bg-panel border border-line">
               <textarea
