@@ -5,6 +5,13 @@ import { processJob } from "./jobRunner.js";
 
 assertEnv();
 
+// Diagnostic only — helps confirm at a glance which Supabase project and
+// service-role key length this deployment actually booted with, without
+// logging the secret itself.
+console.log(
+  `[worker] supabase url: ${process.env.NEXT_PUBLIC_SUPABASE_URL} | service role key length: ${process.env.SUPABASE_SERVICE_ROLE_KEY?.length ?? 0}`,
+);
+
 // Stateless by design: every job's state lives in Supabase (job/clip rows,
 // storage), never in this process's memory, so any number of worker
 // instances can run against the same queue — scale by adding replicas, not

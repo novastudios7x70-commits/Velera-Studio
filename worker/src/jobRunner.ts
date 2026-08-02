@@ -48,14 +48,22 @@ export async function processJob(jobId: string): Promise<void> {
 
   try {
     const { data: job, error: jobError } = await supabase.from("jobs").select("*").eq("id", jobId).single();
-    if (jobError || !job) throw new Error(`Job ${jobId} not found`);
+    if (jobError || !job) {
+      throw new Error(
+        `Job ${jobId} not found: ${jobError?.message ?? "no row returned"} (code: ${jobError?.code ?? "n/a"})`,
+      );
+    }
 
     const { data: upload, error: uploadError } = await supabase
       .from("uploads")
       .select("*")
       .eq("id", job.upload_id)
       .single();
-    if (uploadError || !upload) throw new Error(`Upload for job ${jobId} not found`);
+    if (uploadError || !upload) {
+      throw new Error(
+        `Upload for job ${jobId} not found: ${uploadError?.message ?? "no row returned"} (code: ${uploadError?.code ?? "n/a"})`,
+      );
+    }
 
     await runPipeline(supabase, job, upload, workDir);
   } catch (err) {
