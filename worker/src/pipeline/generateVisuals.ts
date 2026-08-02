@@ -11,11 +11,17 @@ const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
  * calls this unless the flag is on, and it's also re-checked here so a
  * misconfigured caller can't bypass the gate.
  *
- * Uses Higgsfield's async submit → poll → download job pattern. Confirm the
- * exact endpoint paths/payload shape against Higgsfield's current API
- * reference before going live — this integration was built against their
- * documented generation-job contract, but no live credentials were available
- * to exercise it end-to-end in this environment.
+ * Built against Higgsfield's official SDK repos (higgsfield-ai/higgsfield-js,
+ * higgsfield-ai/higgsfield-client) rather than the (blocked-from-fetch) docs
+ * site, since those are the most authoritative source available:
+ *   - base URL: https://platform.higgsfield.ai
+ *   - auth header: "Authorization: Key <api_key>" (not Bearer)
+ *   - status polling: /requests/{request_id}/status
+ *   - submit request body is wrapped in an `input` object
+ * The one thing those repos don't show is the exact text-to-video endpoint
+ * path/model name (their public examples are all image-to-video) — that part
+ * is still a best guess, kept overridable via HIGGSFIELD_T2V_MODEL so it's a
+ * config change, not a redeploy, if it turns out wrong.
  */
 export async function generateVisual(params: {
   contentType: ContentType;
@@ -31,47 +37,79 @@ export async function generateVisual(params: {
   }
 
   const prompt = buildPrompt(params);
+  const model = process.env.HIGGSFIELD_T2V_MODEL || "seedance-v2.0-t2v";
 
-  const submitRes = await fetch(`${env.higgsfieldApiUrl}/v1/video/generate`, {
+  const submitRes = await fetch(`${env.higgsfieldApiUrl}/v1/text2video/${model}`, {
     method: "POST",
     headers: {
-      authorization: `Bearer ${env.higgsfieldApiKey}`,
+      authorization: `Key ${env.higgsfieldApiKey}`,
       "content-type": "application/json",
     },
     body: JSON.stringify({
-      prompt,
-      aspect_ratio: "9:16",
-      duration_seconds: Math.min(Math.max(Math.round(params.durationSeconds), 10), 15),
+      input: {
+        model,
+        prompt,
+        aspect_ratio: "9:16",
+        duration: Math.min(Math.max(Math.round(params.durationSeconds), 10), 15),
+      },
     }),
   });
 
   if (!submitRes.ok) {
     const body = await submitRes.text().catch(() => "");
-    throw new Error(`Higgsfield generation request failed (${submitRes.status}): ${body}`);
+    throw new Error(`Higgsfield generation request failed (${submitRes.status}): ${body.slice(0, 500)}`);
   }
 
-  const { job_id: jobId } = (await submitRes.json()) as { job_id: string };
+  const submitJson = (await submitRes.json()) as Record<string, unknown>;
+  const requestId = (submitJson.request_id ?? submitJson.id ?? submitJson.job_id) as string | undefined;
+  if (!requestId) {
+    throw new Error(`Higgsfield submit response had no recognizable request id: ${JSON.stringify(submitJson).slice(0, 500)}`);
+  }
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   while (Date.now() < deadline) {
-    const statusRes = await fetch(`${env.higgsfieldApiUrl}/v1/video/jobs/${jobId}`, {
-      headers: { authorization: `Bearer ${env.higgsfieldApiKey}` },
+    const statusRes = await fetch(`${env.higgsfieldApiUrl}/requests/${requestId}/status`, {
+      headers: { authorization: `Key ${env.higgsfieldApiKey}` },
     });
     if (!statusRes.ok) {
-      throw new Error(`Higgsfield status check failed (${statusRes.status})`);
+      const body = await statusRes.text().catch(() => "");
+      throw new Error(`Higgsfield status check failed (${statusRes.status}): ${body.slice(0, 500)}`);
     }
-    const status = (await statusRes.json()) as { status: "queued" | "processing" | "completed" | "failed"; output_url?: string; error?: string };
+    const statusJson = (await statusRes.json()) as Record<string, unknown>;
+    const status = String(statusJson.status ?? "").toLowerCase();
 
-    if (status.status === "completed" && status.output_url) {
-      return { videoUrl: status.output_url };
+    if (status === "completed") {
+      const outputUrl = extractOutputUrl(statusJson);
+      if (!outputUrl) {
+        throw new Error(`Higgsfield job completed but no output URL found: ${JSON.stringify(statusJson).slice(0, 500)}`);
+      }
+      return { videoUrl: outputUrl };
     }
-    if (status.status === "failed") {
-      throw new Error(`Higgsfield generation failed: ${status.error ?? "unknown error"}`);
+    if (status === "failed" || status === "nsfw") {
+      throw new Error(`Higgsfield generation ${status}: ${JSON.stringify(statusJson).slice(0, 500)}`);
     }
     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
   }
 
   throw new Error("Higgsfield generation timed out");
+}
+
+/** The completed-job response shape isn't confirmed, so check the common field names an API like this would plausibly use. */
+function extractOutputUrl(statusJson: Record<string, unknown>): string | null {
+  const direct = statusJson.output_url ?? statusJson.video_url ?? statusJson.url;
+  if (typeof direct === "string") return direct;
+
+  const output = statusJson.output as Record<string, unknown> | undefined;
+  if (output) {
+    const nested = output.url ?? output.video_url;
+    if (typeof nested === "string") return nested;
+    if (Array.isArray(output.videos) && typeof output.videos[0]?.url === "string") return output.videos[0].url;
+  }
+
+  const result = statusJson.result as Record<string, unknown> | undefined;
+  if (result && typeof result.url === "string") return result.url;
+
+  return null;
 }
 
 function buildPrompt(params: { contentType: ContentType; moodDescription: string | null; style: VisualStyle | null }) {
