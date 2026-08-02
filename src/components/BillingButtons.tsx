@@ -16,6 +16,7 @@ export function CheckoutButton({
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const { showToast } = useToast();
 
   const handleClick = async () => {
     if (!loggedIn) {
@@ -23,17 +24,22 @@ export function CheckoutButton({
       return;
     }
     setLoading(true);
-    const res = await fetch("/api/stripe/checkout", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ plan }),
-    });
-    const json = await res.json();
-    if (json.url) {
-      window.location.href = json.url;
-    } else {
-      setLoading(false);
+    try {
+      const res = await fetch("/api/stripe/checkout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ plan }),
+      });
+      const json = await res.json().catch(() => null);
+      if (json?.url) {
+        window.location.href = json.url;
+        return;
+      }
+      showToast(json?.error ?? `Could not start checkout (${res.status}).`);
+    } catch {
+      showToast("Could not start checkout — please try again.");
     }
+    setLoading(false);
   };
 
   return (

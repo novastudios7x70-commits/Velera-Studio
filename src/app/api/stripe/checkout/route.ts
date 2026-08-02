@@ -17,23 +17,29 @@ export async function POST(request: Request) {
 
   const { data: profile } = await supabase.from("profiles").select("stripe_customer_id, email").eq("id", user.id).single();
 
-  const stripe = getStripe();
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
+  try {
+    const stripe = getStripe();
+    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL!;
 
-  const session = await stripe.checkout.sessions.create({
-    mode: "subscription",
-    client_reference_id: user.id,
-    customer: profile?.stripe_customer_id ?? undefined,
-    customer_email: profile?.stripe_customer_id ? undefined : profile?.email,
-    line_items: [{ price: priceIdForPlan(parsed.data.plan), quantity: 1 }],
-    // Renewal price/terms are shown on Stripe's own Checkout page before the
-    // card is charged — required disclosure-before-charging per the FTC
-    // click-to-cancel rule.
-    success_url: `${siteUrl}/dashboard?checkout=success`,
-    cancel_url: `${siteUrl}/pricing?checkout=cancelled`,
-    metadata: { user_id: user.id, plan: parsed.data.plan },
-    subscription_data: { metadata: { user_id: user.id, plan: parsed.data.plan } },
-  });
+    const session = await stripe.checkout.sessions.create({
+      mode: "subscription",
+      client_reference_id: user.id,
+      customer: profile?.stripe_customer_id ?? undefined,
+      customer_email: profile?.stripe_customer_id ? undefined : profile?.email,
+      line_items: [{ price: priceIdForPlan(parsed.data.plan), quantity: 1 }],
+      // Renewal price/terms are shown on Stripe's own Checkout page before the
+      // card is charged — required disclosure-before-charging per the FTC
+      // click-to-cancel rule.
+      success_url: `${siteUrl}/dashboard?checkout=success`,
+      cancel_url: `${siteUrl}/pricing?checkout=cancelled`,
+      metadata: { user_id: user.id, plan: parsed.data.plan },
+      subscription_data: { metadata: { user_id: user.id, plan: parsed.data.plan } },
+    });
 
-  return NextResponse.json({ url: session.url });
+    return NextResponse.json({ url: session.url });
+  } catch (err) {
+    console.error("Stripe checkout session creation failed:", err);
+    const message = err instanceof Error ? err.message : "Could not start checkout.";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
