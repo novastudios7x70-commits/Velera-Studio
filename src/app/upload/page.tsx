@@ -65,7 +65,8 @@ export default function UploadPage() {
         .upload(path, file, { contentType: file.type || undefined });
 
       if (uploadError) {
-        setError("Upload failed — please try again.");
+        console.error("Storage upload failed:", uploadError);
+        setError(`Upload failed — ${uploadError.message}`);
         setSubmitting(false);
         return;
       }
