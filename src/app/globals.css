@@ -10,6 +10,33 @@
   --coral: #f5a524;
   --text: #f2f1f6;
   --muted: #8a8a96;
+
+  /*
+   * shadcn/ui semantic token bridge — maps shadcn's expected variable
+   * names onto this app's existing palette above, so components pulled
+   * from 21st.dev render in Velora's colors instead of shadcn defaults,
+   * with no per-component find-replace needed. Keep in sync with the
+   * tokens above rather than hardcoding a second palette here.
+   */
+  --background: var(--void);
+  --foreground: var(--text);
+  --card: var(--panel);
+  --card-foreground: var(--text);
+  --popover: var(--panel);
+  --popover-foreground: var(--text);
+  --primary: var(--violet);
+  --primary-foreground: #ffffff;
+  --secondary: var(--panel);
+  --secondary-foreground: var(--text);
+  --muted-foreground: var(--muted);
+  --accent: var(--violet-soft);
+  --accent-foreground: var(--text);
+  --destructive: var(--coral);
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line);
+  --ring: var(--violet);
+  --radius: 0.75rem;
 }
 
 @theme inline {
@@ -25,6 +52,30 @@
   --font-display: var(--font-outfit);
   --font-sans: var(--font-plus-jakarta);
   --font-mono: var(--font-jetbrains-mono);
+
+  /* shadcn semantic tokens, see :root above */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 0.25rem);
+  --radius-md: calc(var(--radius) - 0.125rem);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 0.25rem);
 }
 
 html,
