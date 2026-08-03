@@ -3,7 +3,7 @@ import { COMPANY } from "@/lib/company";
 
 export function Footer() {
   return (
-    <footer className="border-t border-line mt-auto">
+    <footer className="w-full border-t border-line mt-auto">
       <div className="max-w-5xl mx-auto px-6 py-8 flex flex-col gap-3 text-[12px] text-muted">
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
           <Link href="/pricing" className="hover:text-text transition-colors">

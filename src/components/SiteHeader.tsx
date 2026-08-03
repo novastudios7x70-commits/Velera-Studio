@@ -11,8 +11,16 @@ export async function SiteHeader({ demoMode = false }: { demoMode?: boolean }) {
   } = await supabase.auth.getUser();
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
+    <div className="w-full max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
       <Logo />
+      <nav className="hidden sm:flex items-center gap-6 nova-display text-[13.5px] text-muted">
+        <Link href="/#how-it-works" className="hover:text-text transition-colors">
+          How it works
+        </Link>
+        <Link href="/pricing" className="hover:text-text transition-colors">
+          Pricing
+        </Link>
+      </nav>
       <div className="flex items-center gap-3">
         {demoMode && (
           <div className="nova-mono px-2.5 py-1 rounded-full text-[10.5px] text-muted border border-line">
