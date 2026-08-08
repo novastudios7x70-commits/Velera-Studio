@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #17140f;
-  --void: #faf5ec;
-  --panel: #ffffff;
-  --line: rgba(23, 20, 15, 0.1);
-  --violet: #d6127a;
-  --violet-soft: rgba(214, 18, 122, 0.12);
-  --coral: #65a30d;
-  --coral-soft: rgba(101, 163, 13, 0.12);
-  --text: #1f1b14;
-  --muted: #746d5f;
+  --ink: #05071c;
+  --void: #10143a;
+  --panel: #1a2050;
+  --line: rgba(255, 255, 255, 0.1);
+  --violet: #ff6a3d;
+  --violet-soft: rgba(255, 106, 61, 0.16);
+  --coral: #ffd23f;
+  --coral-soft: rgba(255, 210, 63, 0.16);
+  --text: #f3f4fc;
+  --muted: #9498c7;
 
   /*
    * shadcn/ui semantic token bridge — maps shadcn's expected variable
@@ -33,7 +33,7 @@
   --accent: var(--violet-soft);
   --accent-foreground: var(--text);
   --destructive: var(--coral);
-  --destructive-foreground: #ffffff;
+  --destructive-foreground: var(--ink);
   --border: var(--line);
   --input: var(--line);
   --ring: var(--violet);
@@ -101,7 +101,7 @@ body {
 .nova-glow {
   box-shadow:
     0 0 0 1px var(--line),
-    0 20px 60px -20px rgba(214, 18, 122, 0.35);
+    0 20px 60px -20px rgba(255, 106, 61, 0.35);
 }
 
 .nova-fade-in {
@@ -163,13 +163,13 @@ body {
 }
 
 .nova-btn-primary {
-  background: linear-gradient(135deg, var(--violet), #a10e63);
+  background: linear-gradient(135deg, var(--violet), #c2410c);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .nova-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px -10px rgba(214, 18, 122, 0.45);
+  box-shadow: 0 12px 30px -10px rgba(255, 106, 61, 0.45);
 }
 
 .nova-btn-primary:disabled {
@@ -197,9 +197,9 @@ body {
 }
 
 .nova-card-select:hover {
-  border-color: rgba(214, 18, 122, 0.45);
+  border-color: rgba(255, 106, 61, 0.45);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px -6px rgba(214, 18, 122, 0.2);
+  box-shadow: 0 4px 16px -6px rgba(255, 106, 61, 0.2);
 }
 
 .nova-noise {

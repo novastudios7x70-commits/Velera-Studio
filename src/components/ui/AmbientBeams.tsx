@@ -23,11 +23,11 @@ interface Beam {
   pulseSpeed: number;
 }
 
-const MAGENTA_HUE = 330; // matches --violet (#D6127A)
-const LIME_HUE = 85; // matches --coral (#65A30D)
+const ORANGE_HUE = 16; // matches --violet (#FF6A3D)
+const YELLOW_HUE = 45; // matches --coral (#FFD23F)
 
 function randomHue() {
-  return (Math.random() < 0.5 ? MAGENTA_HUE : LIME_HUE) + (Math.random() * 10 - 5);
+  return (Math.random() < 0.5 ? ORANGE_HUE : YELLOW_HUE) + (Math.random() * 10 - 5);
 }
 
 function createBeam(width: number, height: number): Beam {

@@ -43,7 +43,7 @@ export default function RootLayout({
         className="nova-root nova-scrollbar min-h-full flex flex-col relative"
         style={{
           background:
-            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(13,148,136,0.10), transparent), #faf5ec",
+            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(255,106,61,0.14), transparent), #10143a",
         }}
       >
         <ToastProvider>
