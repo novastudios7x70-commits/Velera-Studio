@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { PrimaryButton } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
+import { KineticWords } from "@/components/ui/KineticWords";
 import { HeroWithMockup } from "@/components/blocks/hero-with-mockup";
 import { HowItWorksTimeline } from "@/components/blocks/how-it-works-timeline";
 
@@ -113,17 +114,19 @@ export default function Home() {
         }
         title={
           <>
-            One upload.
+            <KineticWords text="One upload." />
             <br />
-            <span
+            <KineticWords
+              text="A viral empire."
+              delayStart={0.3}
+              className="inline-block"
               style={{
                 background: "linear-gradient(90deg, var(--violet), var(--coral))",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
+                backgroundClip: "text",
               }}
-            >
-              A viral empire.
-            </span>
+            />
           </>
         }
         description="Drop in a song, a video, or just an idea with no footage at all. Velora Studio finds the moments worth posting — and if you've got nothing to film with, it makes something for you."

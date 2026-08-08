@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/shadcn/button";
 import { Mockup } from "@/components/ui/shadcn/mockup";
 import { Glow } from "@/components/ui/shadcn/glow";
+import { AmbientBeams } from "@/components/ui/AmbientBeams";
 
 /**
  * Adapted from 21st.dev's "Hero with Mockup" (serafimcloud/hero-with-mockup).
@@ -69,6 +70,7 @@ export function HeroWithMockup({
       </div>
 
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <AmbientBeams />
         <Glow variant="above" />
       </div>
     </section>
