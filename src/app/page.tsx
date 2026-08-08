@@ -57,7 +57,7 @@ function ClipMockup() {
       <div className="nova-noise" />
       <div
         className="absolute top-3 right-3 nova-mono text-[10px] px-2 py-1 rounded-full flex items-center gap-1"
-        style={{ background: "rgba(20,184,166,0.16)", color: "#5eead4", border: "1px solid rgba(94,234,212,0.3)" }}
+        style={{ background: "rgba(255,71,168,0.18)", color: "#ff8fce", border: "1px solid rgba(255,143,206,0.35)" }}
       >
         <TrendingUp size={10} /> hook 94%
       </div>
@@ -67,7 +67,7 @@ function ClipMockup() {
             <div
               key={i}
               className="w-[3px] rounded-full"
-              style={{ height: `${h}px`, background: i % 3 === 0 ? "#F5A524" : "#5eead4", opacity: 0.9 }}
+              style={{ height: `${h}px`, background: i % 3 === 0 ? "#c3f53c" : "#ff8fce", opacity: 0.9 }}
             />
           ))}
         </div>

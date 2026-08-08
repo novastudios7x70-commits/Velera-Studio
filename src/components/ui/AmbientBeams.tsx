@@ -23,11 +23,11 @@ interface Beam {
   pulseSpeed: number;
 }
 
-const TEAL_HUE = 173; // matches --violet (#0D9488)
-const AMBER_HUE = 27; // matches --coral (#C2570A)
+const MAGENTA_HUE = 330; // matches --violet (#D6127A)
+const LIME_HUE = 85; // matches --coral (#65A30D)
 
 function randomHue() {
-  return (Math.random() < 0.5 ? TEAL_HUE : AMBER_HUE) + (Math.random() * 10 - 5);
+  return (Math.random() < 0.5 ? MAGENTA_HUE : LIME_HUE) + (Math.random() * 10 - 5);
 }
 
 function createBeam(width: number, height: number): Beam {

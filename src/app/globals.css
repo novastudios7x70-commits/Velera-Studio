@@ -5,10 +5,10 @@
   --void: #faf5ec;
   --panel: #ffffff;
   --line: rgba(23, 20, 15, 0.1);
-  --violet: #0d9488;
-  --violet-soft: rgba(13, 148, 136, 0.12);
-  --coral: #c2570a;
-  --coral-soft: rgba(194, 87, 10, 0.12);
+  --violet: #d6127a;
+  --violet-soft: rgba(214, 18, 122, 0.12);
+  --coral: #65a30d;
+  --coral-soft: rgba(101, 163, 13, 0.12);
   --text: #1f1b14;
   --muted: #746d5f;
 
@@ -101,7 +101,7 @@ body {
 .nova-glow {
   box-shadow:
     0 0 0 1px var(--line),
-    0 20px 60px -20px rgba(13, 148, 136, 0.35);
+    0 20px 60px -20px rgba(214, 18, 122, 0.35);
 }
 
 .nova-fade-in {
@@ -163,13 +163,13 @@ body {
 }
 
 .nova-btn-primary {
-  background: linear-gradient(135deg, var(--violet), #0b7a70);
+  background: linear-gradient(135deg, var(--violet), #a10e63);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .nova-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px -10px rgba(13, 148, 136, 0.45);
+  box-shadow: 0 12px 30px -10px rgba(214, 18, 122, 0.45);
 }
 
 .nova-btn-primary:disabled {
@@ -197,9 +197,9 @@ body {
 }
 
 .nova-card-select:hover {
-  border-color: rgba(13, 148, 136, 0.45);
+  border-color: rgba(214, 18, 122, 0.45);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px -6px rgba(13, 148, 136, 0.2);
+  box-shadow: 0 4px 16px -6px rgba(214, 18, 122, 0.2);
 }
 
 .nova-noise {

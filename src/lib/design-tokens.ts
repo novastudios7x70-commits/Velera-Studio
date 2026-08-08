@@ -6,9 +6,9 @@ export const INK = "#17140F";
 export const VOID = "#FAF5EC"; // warm cream page background
 export const PANEL = "#FFFFFF"; // white card surface, sits brighter than the cream page
 export const LINE = "rgba(23,20,15,0.10)";
-export const VIOLET = "#0D9488"; // signal teal, deepened from the dark-mode value for AA contrast on light backgrounds
-export const VIOLET_SOFT = "rgba(13,148,136,0.12)";
-export const CORAL = "#C2570A"; // warm terracotta/amber, deepened for AA contrast on light backgrounds
+export const VIOLET = "#D6127A"; // signal magenta — creator/TikTok-coded, not generic SaaS teal
+export const VIOLET_SOFT = "rgba(214,18,122,0.12)";
+export const CORAL = "#65A30D"; // electric lime, deepened for AA contrast on light backgrounds
 export const TEXT = "#1F1B14";
 export const MUTED = "#746D5F";
 
