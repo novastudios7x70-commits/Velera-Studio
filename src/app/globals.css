@@ -152,12 +152,38 @@ body {
   animation-play-state: paused;
 }
 
+@keyframes novaBlobA {
+  0%, 100% { border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%; transform: translate(0, 0) scale(1); }
+  33% { border-radius: 60% 40% 35% 65% / 55% 65% 35% 45%; transform: translate(3%, 4%) scale(1.06); }
+  66% { border-radius: 35% 65% 55% 45% / 35% 45% 55% 65%; transform: translate(-2%, 2%) scale(0.97); }
+}
+
+@keyframes novaBlobB {
+  0%, 100% { border-radius: 55% 45% 40% 60% / 40% 55% 45% 60%; transform: translate(0, 0) scale(1); }
+  50% { border-radius: 38% 62% 60% 40% / 60% 40% 60% 40%; transform: translate(-4%, 5%) scale(1.08); }
+}
+
+@keyframes novaBlobC {
+  0%, 100% { border-radius: 48% 52% 55% 45% / 55% 45% 55% 45%; transform: translate(0, 0) scale(1); }
+  40% { border-radius: 65% 35% 45% 55% / 40% 60% 40% 60%; transform: translate(4%, -3%) scale(1.05); }
+  75% { border-radius: 40% 60% 65% 35% / 60% 35% 65% 40%; transform: translate(-3%, -2%) scale(0.96); }
+}
+
+.nova-blob-a { animation: novaBlobA 18s ease-in-out infinite; }
+.nova-blob-b { animation: novaBlobB 22s ease-in-out infinite; }
+.nova-blob-c { animation: novaBlobC 26s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   .nova-marquee-track {
     animation: none;
   }
   .nova-fade-in,
   .nova-pulse-glow {
+    animation: none;
+  }
+  .nova-blob-a,
+  .nova-blob-b,
+  .nova-blob-c {
     animation: none;
   }
 }
