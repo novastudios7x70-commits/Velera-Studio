@@ -4,6 +4,7 @@ import {
   FileText, ListChecks, Scissors, Send, Play, TrendingUp,
 } from "lucide-react";
 import { PrimaryButton } from "@/components/ui/Button";
+import { Reveal } from "@/components/ui/Reveal";
 import { HeroWithMockup } from "@/components/blocks/hero-with-mockup";
 import { HowItWorksTimeline } from "@/components/blocks/how-it-works-timeline";
 
@@ -21,22 +22,30 @@ const CONTENT_PATHS = [
     accent: "violet" as const,
     title: "Music",
     copy: "We find the chorus, the hook, the bridge that hits — synced to the beat if you want it.",
+    tilt: "-rotate-2",
   },
   {
     icon: Mic,
     accent: "violet" as const,
     title: "Talking / spoken",
     copy: "We transcribe and pull the 3-5 moments most likely to stop a scroll.",
+    tilt: "rotate-0 sm:-translate-y-2",
   },
   {
     icon: Wand2,
     accent: "coral" as const,
     title: "No footage? Generate for me",
     copy: "Not a fallback — a first-class path. We build visuals that match your track or transcript before cutting.",
+    tilt: "rotate-2",
   },
 ];
 
 const PLATFORM_PILLS = ["TikTok", "Shorts", "Reels"];
+
+const MARQUEE_ITEMS = [
+  "TikTok", "YouTube Shorts", "Instagram Reels", "Facebook", "Pinterest",
+  "No footage needed", "Music & spoken", "3 clips free",
+];
 
 function ClipMockup() {
   return (
@@ -47,7 +56,7 @@ function ClipMockup() {
       <div className="nova-noise" />
       <div
         className="absolute top-3 right-3 nova-mono text-[10px] px-2 py-1 rounded-full flex items-center gap-1"
-        style={{ background: "rgba(20,184,166,0.16)", color: "var(--violet)", border: "1px solid rgba(20,184,166,0.3)" }}
+        style={{ background: "rgba(20,184,166,0.16)", color: "#5eead4", border: "1px solid rgba(94,234,212,0.3)" }}
       >
         <TrendingUp size={10} /> hook 94%
       </div>
@@ -57,7 +66,7 @@ function ClipMockup() {
             <div
               key={i}
               className="w-[3px] rounded-full"
-              style={{ height: `${h}px`, background: i % 3 === 0 ? "var(--coral)" : "var(--violet)", opacity: 0.85 }}
+              style={{ height: `${h}px`, background: i % 3 === 0 ? "#F5A524" : "#5eead4", opacity: 0.9 }}
             />
           ))}
         </div>
@@ -74,12 +83,31 @@ function ClipMockup() {
   );
 }
 
+function Marquee() {
+  return (
+    <div className="w-full overflow-hidden border-y border-line py-3.5" style={{ background: "var(--panel)" }}>
+      <div className="flex w-max nova-marquee-track">
+        {[0, 1].map((rep) => (
+          <div key={rep} className="flex items-center shrink-0" aria-hidden={rep === 1}>
+            {MARQUEE_ITEMS.map((item) => (
+              <span key={item} className="flex items-center gap-6 px-6">
+                <span className="nova-display font-medium text-[14px] text-text whitespace-nowrap">{item}</span>
+                <Sparkles size={12} className="text-violet shrink-0" />
+              </span>
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   return (
     <>
       <HeroWithMockup
         eyebrow={
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-6 nova-mono text-[12px] text-muted border border-line">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-6 nova-mono text-[12px] text-muted border border-line" style={{ background: "var(--panel)" }}>
             <Sparkles size={12} className="text-violet" /> built for musicians &amp; faceless creators
           </div>
         }
@@ -124,79 +152,91 @@ export default function Home() {
         }
       />
 
-      {/* --- Content paths --- */}
-      <div className="max-w-5xl mx-auto px-6 pb-20 w-full grid sm:grid-cols-3 gap-3.5">
-        {CONTENT_PATHS.map((c) => (
-          <div key={c.title} className="nova-card rounded-2xl p-5">
+      <Marquee />
+
+      {/* --- Content paths, slightly tilted like pinned mood-board cards --- */}
+      <div className="max-w-5xl mx-auto px-6 py-24 w-full grid sm:grid-cols-3 gap-6 sm:gap-5">
+        {CONTENT_PATHS.map((c, i) => (
+          <Reveal key={c.title} delay={i * 90}>
             <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center mb-3.5"
-              style={{ background: c.accent === "violet" ? "var(--violet-soft)" : "rgba(245,165,36,0.14)" }}
+              className={`nova-card rounded-2xl p-5 transition-transform duration-300 hover:rotate-0 hover:-translate-y-1 ${c.tilt}`}
             >
-              <c.icon size={17} className={c.accent === "violet" ? "text-violet" : "text-coral"} />
+              <div
+                className="w-9 h-9 rounded-xl flex items-center justify-center mb-3.5"
+                style={{ background: c.accent === "violet" ? "var(--violet-soft)" : "var(--coral-soft)" }}
+              >
+                <c.icon size={17} className={c.accent === "violet" ? "text-violet" : "text-coral"} />
+              </div>
+              <div className="nova-display font-medium text-[14.5px] text-text mb-1.5">{c.title}</div>
+              <div className="text-[12.5px] text-muted leading-relaxed">{c.copy}</div>
             </div>
-            <div className="nova-display font-medium text-[14.5px] text-text mb-1.5">{c.title}</div>
-            <div className="text-[12.5px] text-muted leading-relaxed">{c.copy}</div>
-          </div>
+          </Reveal>
         ))}
       </div>
 
       <div id="how-it-works" className="scroll-mt-20">
-        <HowItWorksTimeline
-          eyebrow="THE PIPELINE"
-          title="How it works"
-          description="One upload, five steps, straight to platform-ready clips."
-          steps={STEPS}
-        />
+        <Reveal>
+          <HowItWorksTimeline
+            eyebrow="THE PIPELINE"
+            title="How it works"
+            description="One upload, five steps, straight to platform-ready clips."
+            steps={STEPS}
+          />
+        </Reveal>
       </div>
 
       <div className="max-w-2xl mx-auto px-6 -mt-8 pb-20 w-full">
-        <div
-          className="rounded-2xl p-5 flex items-center gap-3.5"
-          style={{ background: "linear-gradient(120deg, rgba(20,184,166,0.08), rgba(245,165,36,0.06))", border: "1px solid var(--line)" }}
-        >
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(245,165,36,0.14)" }}>
-            <Film size={16} className="text-coral" />
+        <Reveal>
+          <div
+            className="rounded-2xl p-5 flex items-center gap-3.5"
+            style={{ background: "linear-gradient(120deg, var(--violet-soft), var(--coral-soft))", border: "1px solid var(--line)" }}
+          >
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--coral-soft)" }}>
+              <Film size={16} className="text-coral" />
+            </div>
+            <div className="text-[13px] text-text leading-relaxed">
+              No footage? &ldquo;Generate for me&rdquo; is a first-class option, not an afterthought —
+              visuals are built to match your track or transcript before the same
+              cutting and captioning pipeline runs.
+            </div>
           </div>
-          <div className="text-[13px] text-text leading-relaxed">
-            No footage? &ldquo;Generate for me&rdquo; is a first-class option, not an afterthought —
-            visuals are built to match your track or transcript before the same
-            cutting and captioning pipeline runs.
-          </div>
-        </div>
+        </Reveal>
       </div>
 
       {/* --- Closing CTA --- */}
       <div className="max-w-5xl mx-auto px-6 pb-24 w-full">
-        <div
-          className="nova-card rounded-3xl px-8 py-14 text-center relative overflow-hidden"
-          style={{ background: "linear-gradient(160deg, var(--panel) 0%, #14141a 100%)" }}
-        >
+        <Reveal>
           <div
-            className="absolute pointer-events-none"
-            style={{
-              top: -140,
-              left: "50%",
-              transform: "translateX(-50%)",
-              width: 420,
-              height: 420,
-              borderRadius: "50%",
-              background: "radial-gradient(circle, var(--violet-soft), transparent 70%)",
-              filter: "blur(10px)",
-            }}
-          />
-          <h2 className="nova-display font-semibold mb-3 text-[26px] sm:text-[30px] text-text tracking-[-0.02em] relative">
-            Post more, film less.
-          </h2>
-          <p className="mb-8 mx-auto max-w-[420px] text-muted text-[14.5px] leading-relaxed relative">
-            Your first 3 clips are free — no card, no catch. See what Velora Studio
-            finds in your next upload.
-          </p>
-          <Link href="/signup" className="inline-flex relative">
-            <PrimaryButton className="px-8 py-3.5 text-[15px]">
-              Start free <ArrowRight size={17} />
-            </PrimaryButton>
-          </Link>
-        </div>
+            className="rounded-3xl px-8 py-14 text-center relative overflow-hidden"
+            style={{ background: "linear-gradient(160deg, #fff 0%, #fdf3e3 100%)", border: "1px solid var(--line)" }}
+          >
+            <div
+              className="absolute pointer-events-none"
+              style={{
+                top: -140,
+                left: "50%",
+                transform: "translateX(-50%)",
+                width: 420,
+                height: 420,
+                borderRadius: "50%",
+                background: "radial-gradient(circle, var(--violet-soft), transparent 70%)",
+                filter: "blur(10px)",
+              }}
+            />
+            <h2 className="nova-display font-semibold mb-3 text-[26px] sm:text-[30px] text-text tracking-[-0.02em] relative">
+              Post more, film less.
+            </h2>
+            <p className="mb-8 mx-auto max-w-[420px] text-muted text-[14.5px] leading-relaxed relative">
+              Your first 3 clips are free — no card, no catch. See what Velora Studio
+              finds in your next upload.
+            </p>
+            <Link href="/signup" className="inline-flex relative">
+              <PrimaryButton className="px-8 py-3.5 text-[15px]">
+                Start free <ArrowRight size={17} />
+              </PrimaryButton>
+            </Link>
+          </div>
+        </Reveal>
       </div>
     </>
   );

@@ -2,15 +2,15 @@
 // Keep this file as the single source of truth for the visual language —
 // any new component should pull colors from here rather than hardcoding hex values.
 
-export const INK = "#050507";
-export const VOID = "#0a0a0e";
-export const PANEL = "#111116";
-export const LINE = "rgba(255,255,255,0.08)";
-export const VIOLET = "#14B8A6"; // signal teal
-export const VIOLET_SOFT = "rgba(20,184,166,0.14)";
-export const CORAL = "#F5A524"; // warm amber
-export const TEXT = "#F2F1F6";
-export const MUTED = "#8A8A96";
+export const INK = "#17140F";
+export const VOID = "#FAF5EC"; // warm cream page background
+export const PANEL = "#FFFFFF"; // white card surface, sits brighter than the cream page
+export const LINE = "rgba(23,20,15,0.10)";
+export const VIOLET = "#0D9488"; // signal teal, deepened from the dark-mode value for AA contrast on light backgrounds
+export const VIOLET_SOFT = "rgba(13,148,136,0.12)";
+export const CORAL = "#C2570A"; // warm terracotta/amber, deepened for AA contrast on light backgrounds
+export const TEXT = "#1F1B14";
+export const MUTED = "#746D5F";
 
 export const PLATFORMS = [
   { id: "tiktok", label: "TikTok" },

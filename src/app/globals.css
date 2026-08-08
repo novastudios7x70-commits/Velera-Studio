@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #050507;
-  --void: #0a0a0e;
-  --panel: #111116;
-  --line: rgba(255, 255, 255, 0.08);
-  --violet: #14b8a6;
-  --violet-soft: rgba(20, 184, 166, 0.14);
-  --coral: #f5a524;
-  --text: #f2f1f6;
-  --muted: #8a8a96;
+  --ink: #17140f;
+  --void: #faf5ec;
+  --panel: #ffffff;
+  --line: rgba(23, 20, 15, 0.1);
+  --violet: #0d9488;
+  --violet-soft: rgba(13, 148, 136, 0.12);
+  --coral: #c2570a;
+  --coral-soft: rgba(194, 87, 10, 0.12);
+  --text: #1f1b14;
+  --muted: #746d5f;
 
   /*
    * shadcn/ui semantic token bridge — maps shadcn's expected variable
@@ -47,6 +48,7 @@
   --color-violet: var(--violet);
   --color-violet-soft: var(--violet-soft);
   --color-coral: var(--coral);
+  --color-coral-soft: var(--coral-soft);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --font-display: var(--font-outfit);
@@ -99,7 +101,7 @@ body {
 .nova-glow {
   box-shadow:
     0 0 0 1px var(--line),
-    0 20px 60px -20px rgba(20, 184, 166, 0.35);
+    0 20px 60px -20px rgba(13, 148, 136, 0.35);
 }
 
 .nova-fade-in {
@@ -133,14 +135,41 @@ body {
   animation: novaPulse 6s ease-in-out infinite;
 }
 
+@keyframes novaMarquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.nova-marquee-track {
+  animation: novaMarquee 28s linear infinite;
+}
+
+.nova-marquee-track:hover {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nova-marquee-track {
+    animation: none;
+  }
+  .nova-fade-in,
+  .nova-pulse-glow {
+    animation: none;
+  }
+}
+
 .nova-btn-primary {
-  background: linear-gradient(135deg, var(--violet), #0f766e);
+  background: linear-gradient(135deg, var(--violet), #0b7a70);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .nova-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px -10px rgba(20, 184, 166, 0.45);
+  box-shadow: 0 12px 30px -10px rgba(13, 148, 136, 0.45);
 }
 
 .nova-btn-primary:disabled {
@@ -168,9 +197,9 @@ body {
 }
 
 .nova-card-select:hover {
-  border-color: rgba(20, 184, 166, 0.45);
+  border-color: rgba(13, 148, 136, 0.45);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px -6px rgba(20, 184, 166, 0.2);
+  box-shadow: 0 4px 16px -6px rgba(13, 148, 136, 0.2);
 }
 
 .nova-noise {

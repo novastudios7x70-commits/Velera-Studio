@@ -64,9 +64,9 @@ export function BrandKitForm({ profile }: { profile: Profile }) {
               aria-label={c.name}
               aria-pressed={color === c.hex}
               className="w-9 h-9 rounded-full flex items-center justify-center"
-              style={{ background: c.hex, border: color === c.hex ? "2px solid white" : "2px solid transparent" }}
+              style={{ background: c.hex, border: color === c.hex ? "2px solid var(--text)" : "2px solid transparent" }}
             >
-              {color === c.hex && <Check size={14} color="#0a0a0e" />}
+              {color === c.hex && <Check size={14} color="#ffffff" />}
             </button>
           ))}
         </div>
