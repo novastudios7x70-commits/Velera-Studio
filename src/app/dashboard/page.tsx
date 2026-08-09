@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Music, Mic, Plus, FolderOpen, Clock, Wand2, Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
+import { Reveal } from "@/components/ui/Reveal";
 import type { ContentType, VisualSource, JobStatus } from "@/lib/database.types";
 
 // streak_count only advances/resets inside create_job() when a new upload
@@ -102,83 +103,88 @@ export default async function DashboardPage() {
       </div>
 
       {profile && (
-        <div className="nova-card rounded-2xl px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-3">
-          <div className="text-[13px] text-text">
-            {profile.plan === "agency" || profile.plan === "trial" ? (
-              <>
-                <span className="nova-mono">{profile.clips_remaining}</span> clips remaining on your trial
-                {profile.generated_clips_remaining > 0 && (
-                  <span className="text-muted"> · {profile.generated_clips_remaining} can use generated visuals</span>
-                )}
-              </>
-            ) : (
-              <>
-                <span className="nova-mono">
-                  {(profile.clips_monthly_allowance ?? 0) - profile.clips_used_this_cycle}
-                </span>{" "}
-                of {profile.clips_monthly_allowance} clips left this cycle
-              </>
+        <Reveal>
+          <div className="nova-card rounded-2xl px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-3">
+            <div className="text-[13px] text-text">
+              {profile.plan === "agency" || profile.plan === "trial" ? (
+                <>
+                  <span className="nova-mono">{profile.clips_remaining}</span> clips remaining on your trial
+                  {profile.generated_clips_remaining > 0 && (
+                    <span className="text-muted"> · {profile.generated_clips_remaining} can use generated visuals</span>
+                  )}
+                </>
+              ) : (
+                <>
+                  <span className="nova-mono">
+                    {(profile.clips_monthly_allowance ?? 0) - profile.clips_used_this_cycle}
+                  </span>{" "}
+                  of {profile.clips_monthly_allowance} clips left this cycle
+                </>
+              )}
+            </div>
+            {profile.plan === "trial" && (
+              <Link href="/pricing" className="text-[12.5px] text-violet">
+                Upgrade for more
+              </Link>
             )}
           </div>
-          {profile.plan === "trial" && (
-            <Link href="/pricing" className="text-[12.5px] text-violet">
-              Upgrade for more
-            </Link>
-          )}
-        </div>
+        </Reveal>
       )}
 
       {projects.length === 0 ? (
-        <div className="nova-card rounded-2xl px-6 py-14 text-center">
-          <FolderOpen size={26} className="text-muted mx-auto mb-3" />
-          <div className="nova-display font-medium text-[15px] text-text mb-1">No uploads yet</div>
-          <div className="text-[13px] text-muted mb-5">Your first 3 clips are on us.</div>
-          <Link href="/upload">
-            <PrimaryButton className="px-5 py-2.5 text-[13.5px] mx-auto">
-              <Plus size={15} /> New upload
-            </PrimaryButton>
-          </Link>
-        </div>
+        <Reveal>
+          <div className="nova-card rounded-2xl px-6 py-14 text-center">
+            <FolderOpen size={26} className="text-muted mx-auto mb-3" />
+            <div className="nova-display font-medium text-[15px] text-text mb-1">No uploads yet</div>
+            <div className="text-[13px] text-muted mb-5">Your first 3 clips are on us.</div>
+            <Link href="/upload">
+              <PrimaryButton className="px-5 py-2.5 text-[13.5px] mx-auto">
+                <Plus size={15} /> New upload
+              </PrimaryButton>
+            </Link>
+          </div>
+        </Reveal>
       ) : (
         <div className="flex flex-col gap-2.5">
-          {projects.map((p) => (
-            <Link
-              key={p.id}
-              href={p.status === "done" ? `/jobs/${p.id}/results` : `/jobs/${p.id}`}
-              className="nova-card nova-card-select rounded-2xl px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-violet-soft">
-                  {p.upload?.content_type === "music" ? (
-                    <Music size={16} className="text-violet" />
-                  ) : (
-                    <Mic size={16} className="text-coral" />
-                  )}
-                </div>
-                <div>
-                  <div className="text-[14px] text-text">{p.upload?.file_name ?? "Untitled upload"}</div>
-                  <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-muted">
-                    <Clock size={11} /> {timeAgo(p.created_at)}
-                    {p.upload?.visual_source === "generate" && (
-                      <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-violet-soft text-violet flex items-center gap-1">
-                        <Wand2 size={9} /> generated visuals
-                      </span>
+          {projects.map((p, i) => (
+            <Reveal key={p.id} delay={Math.min(i, 6) * 45}>
+              <Link
+                href={p.status === "done" ? `/jobs/${p.id}/results` : `/jobs/${p.id}`}
+                className="nova-card nova-card-select rounded-2xl px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
+              >
+                <div className="flex items-center gap-3.5">
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-violet-soft">
+                    {p.upload?.content_type === "music" ? (
+                      <Music size={16} className="text-violet" />
+                    ) : (
+                      <Mic size={16} className="text-coral" />
                     )}
                   </div>
+                  <div>
+                    <div className="text-[14px] text-text">{p.upload?.file_name ?? "Untitled upload"}</div>
+                    <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-muted">
+                      <Clock size={11} /> {timeAgo(p.created_at)}
+                      {p.upload?.visual_source === "generate" && (
+                        <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-violet-soft text-violet flex items-center gap-1">
+                          <Wand2 size={9} /> generated visuals
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-1.5 nova-mono text-[12.5px] text-muted">
-                {p.status === "done" ? (
-                  <>
-                    <FolderOpen size={13} /> {p.clips?.[0]?.count ?? 0} clips
-                  </>
-                ) : p.status === "failed" ? (
-                  <span className="text-coral">Failed</span>
-                ) : (
-                  STATUS_LABEL[p.status]
-                )}
-              </div>
-            </Link>
+                <div className="flex items-center gap-1.5 nova-mono text-[12.5px] text-muted">
+                  {p.status === "done" ? (
+                    <>
+                      <FolderOpen size={13} /> {p.clips?.[0]?.count ?? 0} clips
+                    </>
+                  ) : p.status === "failed" ? (
+                    <span className="text-coral">Failed</span>
+                  ) : (
+                    STATUS_LABEL[p.status]
+                  )}
+                </div>
+              </Link>
+            </Reveal>
           ))}
         </div>
       )}
