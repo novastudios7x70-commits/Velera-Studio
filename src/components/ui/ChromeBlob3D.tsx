@@ -9,7 +9,7 @@ import { PerspectiveCamera as PerspectiveCameraImpl, type Mesh } from "three";
  * Real WebGL 3D (Three.js via react-three-fiber), not a CSS fake — per
  * feedback that the flat blob decoration read as too 2D against
  * reference sites (k95.it's chrome sculpture in particular). A cluster
- * of slowly-rotating liquid-metal spheres at different sizes: organic
+ * of slowly-drifting liquid-metal spheres at different sizes: organic
  * like the CSS blobs, but genuinely three-dimensional, tinted with the
  * app's own accent colors instead of a neutral studio chrome look.
  */
@@ -58,11 +58,19 @@ function ResponsiveCamera() {
 
 function DistortedSphere({ position, scale, color, distort, speed, rotSpeed }: BlobConfig) {
   const meshRef = useRef<Mesh>(null);
+  // Random per-instance phase so the blobs don't bob in lockstep.
+  const phase = useRef(Math.random() * Math.PI * 2).current;
 
   useFrame((state) => {
     if (!meshRef.current) return;
-    meshRef.current.rotation.x = state.clock.elapsedTime * 0.08 * rotSpeed;
-    meshRef.current.rotation.y = state.clock.elapsedTime * 0.12 * rotSpeed;
+    const t = state.clock.elapsedTime;
+    meshRef.current.rotation.x = t * 0.08 * rotSpeed;
+    meshRef.current.rotation.y = t * 0.12 * rotSpeed;
+    // Gentle floating drift — a rotating sphere alone barely reads as
+    // moving (rotational symmetry hides it), so position is what actually
+    // sells "alive" here.
+    meshRef.current.position.x = position[0] + Math.sin(t * 0.35 * rotSpeed + phase) * 0.35;
+    meshRef.current.position.y = position[1] + Math.cos(t * 0.28 * rotSpeed + phase) * 0.3;
   });
 
   return (
@@ -80,7 +88,7 @@ const INITIAL_CAMERA = { position: [0, 0, 7] as [number, number, number], fov: 5
 export function ChromeBlob3D({ className }: { className?: string }) {
   return (
     <div className={className}>
-      <Canvas camera={INITIAL_CAMERA} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
+      <Canvas camera={INITIAL_CAMERA} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }} frameloop="always">
         <Suspense fallback={null}>
           <ResponsiveCamera />
           <ambientLight intensity={1.1} />
