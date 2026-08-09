@@ -10,6 +10,9 @@ import { StepPill } from "@/components/ui/StepPill";
 import { PrimaryButton } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
+import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
+import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import type { AudioSource, ContentType, VisualSource } from "@/lib/database.types";
 
 const GENERATE_VISUALS_ENABLED = process.env.NEXT_PUBLIC_GENERATE_VISUALS_ENABLED === "true";
@@ -164,9 +167,11 @@ export default function UploadPage() {
 
       {!contentType && (
         <div>
-          <h1 className="nova-display font-semibold mb-1 text-[22px] text-text">What are you posting?</h1>
+          <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[22px] text-text">
+            What are you posting?
+          </TextEffect>
           <p className="mb-6 text-muted text-[14px]">This decides how Velora Studio reads your upload.</p>
-          <div className="grid grid-cols-2 gap-3">
+          <AnimatedGroup preset="blur-slide" className="grid grid-cols-2 gap-3">
             <button onClick={() => setContentType("music")} className="nova-card nova-card-select rounded-2xl p-5 text-left">
               <Music size={20} className="text-violet mb-3" />
               <div className="nova-display font-medium text-[15px] text-text">Music</div>
@@ -177,15 +182,17 @@ export default function UploadPage() {
               <div className="nova-display font-medium text-[15px] text-text">Talking / spoken</div>
               <div className="text-[12.5px] text-muted mt-0.5">Voiceover, podcast, script</div>
             </button>
-          </div>
+          </AnimatedGroup>
         </div>
       )}
 
       {contentType && !visualSource && (
         <div>
-          <h1 className="nova-display font-semibold mb-1 text-[22px] text-text">Do you have footage?</h1>
+          <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[22px] text-text">
+            Do you have footage?
+          </TextEffect>
           <p className="mb-6 text-muted text-[14px]">No camera, no footage, no problem — Velora Studio can build visuals for you.</p>
-          <div className="grid grid-cols-2 gap-3">
+          <AnimatedGroup preset="blur-slide" className="grid grid-cols-2 gap-3">
             <button onClick={() => setVisualSource("has")} className="nova-card nova-card-select rounded-2xl p-5 text-left">
               <Film size={20} className="text-violet mb-3" />
               <div className="nova-display font-medium text-[15px] text-text">I have footage</div>
@@ -202,15 +209,15 @@ export default function UploadPage() {
                 {GENERATE_VISUALS_ENABLED ? "Build visuals that match the mood" : "Temporarily unavailable"}
               </div>
             </button>
-          </div>
+          </AnimatedGroup>
         </div>
       )}
 
       {canContinue && (
         <div>
-          <h1 className="nova-display font-semibold mb-1 text-[22px] text-text">
+          <TextEffect as="h1" per="word" preset="fade-in-blur" trigger={true} className="nova-display font-semibold mb-1 text-[22px] text-text">
             {audioSource === "tts" ? "Write your script" : `Upload your ${contentType === "music" ? "track" : "video or audio"}`}
-          </h1>
+          </TextEffect>
           <p className="mb-6 text-muted text-[14px]">
             {audioSource === "tts"
               ? "We'll turn this into a voiceover, then find the best moments to clip."
@@ -348,21 +355,33 @@ export default function UploadPage() {
 
           {error && <p className="text-[12.5px] text-coral mb-3">{error}</p>}
 
-          <PrimaryButton disabled={!canSubmit || submitting} onClick={handleSubmit} className="w-full py-3.5 text-[15px]">
-            {submitting ? (
-              <>
-                <Loader2 size={16} className="animate-spin" /> Uploading…
-              </>
-            ) : audioSource === "tts" ? (
-              <>
-                Generate my clips <FileText size={16} />
-              </>
-            ) : (
-              <>
-                Generate my clips <Sparkles size={16} />
-              </>
+          <div className="relative">
+            {canSubmit && !submitting && (
+              <GlowEffect
+                colors={["#A855F7", "#D4AF37", "#E63946"]}
+                mode="breathe"
+                blur="soft"
+                scale={0.96}
+                duration={4}
+                className="opacity-60 rounded-xl"
+              />
             )}
-          </PrimaryButton>
+            <PrimaryButton disabled={!canSubmit || submitting} onClick={handleSubmit} className="relative w-full py-3.5 text-[15px]">
+              {submitting ? (
+                <>
+                  <Loader2 size={16} className="animate-spin" /> Uploading…
+                </>
+              ) : audioSource === "tts" ? (
+                <>
+                  Generate my clips <FileText size={16} />
+                </>
+              ) : (
+                <>
+                  Generate my clips <Sparkles size={16} />
+                </>
+              )}
+            </PrimaryButton>
+          </div>
         </div>
       )}
     </div>
