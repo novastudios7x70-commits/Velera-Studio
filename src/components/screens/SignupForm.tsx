@@ -36,7 +36,7 @@ export function SignupForm() {
 
   return (
     <div className="relative w-full">
-      <ChromeBlob3D className="hidden lg:block absolute inset-0 pointer-events-none" />
+      <ChromeBlob3D className="absolute inset-x-0 top-0 h-[560px] pointer-events-none" />
       <div className="max-w-md mx-auto px-6 py-16 w-full relative">
         <Reveal>
           <div>

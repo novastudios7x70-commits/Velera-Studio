@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, useEffect, useRef, useState } from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Suspense, useEffect, useRef } from "react";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { MeshDistortMaterial, Sphere } from "@react-three/drei";
-import type { Mesh } from "three";
+import { PerspectiveCamera as PerspectiveCameraImpl, type Mesh } from "three";
 
 /**
  * Real WebGL 3D (Three.js via react-three-fiber), not a CSS fake — per
@@ -34,6 +34,28 @@ const BLOBS: BlobConfig[] = [
   { position: [-4.8, 2.4, -2], scale: 0.34, color: "#E63946", distort: 0.38, speed: 1.7, rotSpeed: 0.9 },
 ];
 
+// A fixed camera distance only shows the wide blob spread correctly on a
+// wide (desktop) aspect ratio — horizontal FOV shrinks with the container's
+// aspect ratio, so on a narrow phone-portrait canvas every blob fell
+// outside frame. Pull the camera back as the container gets narrower so
+// the same world-space half-width stays visible regardless of shape.
+const TARGET_HALF_WIDTH = 5.4;
+
+function ResponsiveCamera() {
+  const { camera, size } = useThree();
+
+  useEffect(() => {
+    if (!(camera instanceof PerspectiveCameraImpl) || size.height === 0) return;
+    const aspect = size.width / size.height;
+    const vFovRad = (camera.fov * Math.PI) / 180;
+    const distance = TARGET_HALF_WIDTH / (Math.tan(vFovRad / 2) * aspect);
+    camera.position.z = Math.min(Math.max(distance, 7), 26);
+    camera.updateProjectionMatrix();
+  }, [camera, size]);
+
+  return null;
+}
+
 function DistortedSphere({ position, scale, color, distort, speed, rotSpeed }: BlobConfig) {
   const meshRef = useRef<Mesh>(null);
 
@@ -44,31 +66,23 @@ function DistortedSphere({ position, scale, color, distort, speed, rotSpeed }: B
   });
 
   return (
-    <Sphere ref={meshRef} args={[1, 128, 128]} position={position} scale={scale}>
+    <Sphere ref={meshRef} args={[1, 64, 64]} position={position} scale={scale}>
       <MeshDistortMaterial color={color} attach="material" distort={distort} speed={speed} roughness={0.28} metalness={0.55} />
     </Sphere>
   );
 }
 
+// A fresh object literal here on every render makes react-three-fiber
+// keep re-applying these initial values, fighting ResponsiveCamera's
+// imperative position updates — this must stay a stable reference.
+const INITIAL_CAMERA = { position: [0, 0, 7] as [number, number, number], fov: 50 };
+
 export function ChromeBlob3D({ className }: { className?: string }) {
-  // Don't stand up a WebGL context that just renders hidden frames behind
-  // a `hidden lg:block` wrapper — actually skip mounting it on small
-  // viewports instead of only hiding it visually.
-  const [canRender, setCanRender] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 1024px)");
-    setCanRender(mq.matches);
-    const onChange = () => setCanRender(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-
-  if (!canRender) return null;
-
   return (
     <div className={className}>
-      <Canvas camera={{ position: [0, 0, 7], fov: 50 }} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
+      <Canvas camera={INITIAL_CAMERA} dpr={[1, 1.5]} gl={{ alpha: true, antialias: true }}>
         <Suspense fallback={null}>
+          <ResponsiveCamera />
           <ambientLight intensity={1.1} />
           <hemisphereLight args={["#e9d5ff", "#1a1024", 1.2]} />
           <pointLight position={[3, 2, 4]} intensity={70} color="#D4AF37" />
