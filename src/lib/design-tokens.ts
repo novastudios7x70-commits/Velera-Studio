@@ -2,16 +2,18 @@
 // Keep this file as the single source of truth for the visual language —
 // any new component should pull colors from here rather than hardcoding hex values.
 
-export const INK = "#05071C";
-export const VOID = "#10143A"; // deep indigo-blue page background (k95.it-inspired)
-export const PANEL = "#1A2050"; // slightly lighter blue-black card surface
+export const INK = "#05030A";
+export const VOID = "#0B0714"; // near-black with a faint purple tint
+export const PANEL = "#1A1024"; // dark purple-black card surface
 export const LINE = "rgba(255,255,255,0.10)";
-export const VIOLET = "#FF6A3D"; // vivid orange, high-contrast against the blue base
-export const VIOLET_SOFT = "rgba(255,106,61,0.16)";
-export const CORAL = "#FFD23F"; // warm yellow, second accent
-export const CORAL_SOFT = "rgba(255,210,63,0.16)";
-export const TEXT = "#F3F4FC";
-export const MUTED = "#9498C7";
+export const VIOLET = "#A855F7"; // royal purple, primary accent
+export const VIOLET_SOFT = "rgba(168,85,247,0.16)";
+export const CORAL = "#D4AF37"; // gold, second accent
+export const CORAL_SOFT = "rgba(212,175,55,0.16)";
+export const RUBY = "#E63946"; // deep red, third accent
+export const RUBY_SOFT = "rgba(230,57,70,0.16)";
+export const TEXT = "#F5F1FA";
+export const MUTED = "#9C8FAE";
 
 export const PLATFORMS = [
   { id: "tiktok", label: "TikTok" },

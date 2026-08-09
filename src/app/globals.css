@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #05071c;
-  --void: #10143a;
-  --panel: #1a2050;
+  --ink: #05030a;
+  --void: #0b0714;
+  --panel: #1a1024;
   --line: rgba(255, 255, 255, 0.1);
-  --violet: #ff6a3d;
-  --violet-soft: rgba(255, 106, 61, 0.16);
-  --coral: #ffd23f;
-  --coral-soft: rgba(255, 210, 63, 0.16);
-  --text: #f3f4fc;
-  --muted: #9498c7;
+  --violet: #a855f7;
+  --violet-soft: rgba(168, 85, 247, 0.16);
+  --coral: #d4af37;
+  --coral-soft: rgba(212, 175, 55, 0.16);
+  --ruby: #e63946;
+  --ruby-soft: rgba(230, 57, 70, 0.16);
+  --text: #f5f1fa;
+  --muted: #9c8fae;
 
   /*
    * shadcn/ui semantic token bridge — maps shadcn's expected variable
@@ -32,8 +34,8 @@
   --muted-foreground: var(--muted);
   --accent: var(--violet-soft);
   --accent-foreground: var(--text);
-  --destructive: var(--coral);
-  --destructive-foreground: var(--ink);
+  --destructive: var(--ruby);
+  --destructive-foreground: #ffffff;
   --border: var(--line);
   --input: var(--line);
   --ring: var(--violet);
@@ -49,6 +51,8 @@
   --color-violet-soft: var(--violet-soft);
   --color-coral: var(--coral);
   --color-coral-soft: var(--coral-soft);
+  --color-ruby: var(--ruby);
+  --color-ruby-soft: var(--ruby-soft);
   --color-text: var(--text);
   --color-muted: var(--muted);
   --font-display: var(--font-outfit);
@@ -101,7 +105,7 @@ body {
 .nova-glow {
   box-shadow:
     0 0 0 1px var(--line),
-    0 20px 60px -20px rgba(255, 106, 61, 0.35);
+    0 20px 60px -20px rgba(168, 85, 247, 0.35);
 }
 
 .nova-fade-in {
@@ -189,13 +193,13 @@ body {
 }
 
 .nova-btn-primary {
-  background: linear-gradient(135deg, var(--violet), #c2410c);
+  background: linear-gradient(135deg, var(--violet), #6b21a8);
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .nova-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px -10px rgba(255, 106, 61, 0.45);
+  box-shadow: 0 12px 30px -10px rgba(168, 85, 247, 0.45);
 }
 
 .nova-btn-primary:disabled {
@@ -223,9 +227,9 @@ body {
 }
 
 .nova-card-select:hover {
-  border-color: rgba(255, 106, 61, 0.45);
+  border-color: rgba(168, 85, 247, 0.45);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px -6px rgba(255, 106, 61, 0.2);
+  box-shadow: 0 4px 16px -6px rgba(168, 85, 247, 0.2);
 }
 
 .nova-noise {
