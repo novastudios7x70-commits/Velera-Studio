@@ -35,17 +35,18 @@ export function SignupForm() {
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-6 py-16 w-full relative">
-      <div className="grid lg:grid-cols-[1fr_0.85fr] gap-14 items-center relative">
+    <div className="relative w-full">
+      <ChromeBlob3D className="hidden lg:block absolute inset-0 pointer-events-none" />
+      <div className="max-w-md mx-auto px-6 py-16 w-full relative">
         <Reveal>
-          <div className="max-w-md">
+          <div>
             <Link href="/" className="flex items-center gap-1 mb-8 text-muted text-[13px]">
               <ArrowLeft size={14} /> back
             </Link>
             <h1 className="nova-display font-semibold mb-1 text-[26px] text-text">3 clips, free</h1>
             <p className="mb-7 text-[13.5px] text-muted">No credit card. No time limit — use them whenever.</p>
 
-            <div className="nova-card rounded-2xl p-6">
+            <div className="nova-card rounded-2xl p-6" style={{ backdropFilter: "blur(8px)" }}>
               <form action={formAction} className="flex flex-col gap-3">
                 <Field icon={User} name="name" placeholder="Your name" autoComplete="name" />
                 <Field icon={Mail} type="email" name="email" placeholder="you@email.com" required autoComplete="email" />
@@ -108,10 +109,6 @@ export function SignupForm() {
             </p>
           </div>
         </Reveal>
-
-        <div className="hidden lg:block relative" style={{ height: 420 }}>
-          <ChromeBlob3D className="absolute inset-0" />
-        </div>
       </div>
     </div>
   );
