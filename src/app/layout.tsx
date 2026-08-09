@@ -24,6 +24,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
   title: "Velora Studio — One upload. A viral empire.",
   description:
     "Velora Studio turns one upload into platform-ready short-form clips for TikTok, YouTube Shorts, Instagram Reels, Facebook, and Pinterest.",
