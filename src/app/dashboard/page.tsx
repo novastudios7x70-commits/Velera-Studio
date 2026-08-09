@@ -4,6 +4,9 @@ import { Music, Mic, Plus, FolderOpen, Clock, Wand2, Flame } from "lucide-react"
 import { createClient } from "@/lib/supabase/server";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
+import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
+import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import type { ContentType, VisualSource, JobStatus } from "@/lib/database.types";
 
 // streak_count only advances/resets inside create_job() when a new upload
@@ -78,7 +81,9 @@ export default async function DashboardPage() {
     <div className="nova-fade-in max-w-4xl mx-auto px-6 py-12 w-full">
       <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
         <div>
-          <h1 className="nova-display font-semibold mb-1 text-[22px] text-text">Your projects</h1>
+          <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[22px] text-text">
+            Your projects
+          </TextEffect>
           <p className="text-[13.5px] text-muted">{projects.length} upload{projects.length === 1 ? "" : "s"} processed</p>
         </div>
         <div className="flex items-center gap-2">
@@ -94,8 +99,9 @@ export default async function DashboardPage() {
           <Link href="/pricing">
             <GhostButton className="nova-mono px-3.5 py-2.5 text-[12.5px]">{planLabel} plan</GhostButton>
           </Link>
-          <Link href="/upload">
-            <PrimaryButton className="px-4 py-2.5 text-[13.5px]">
+          <Link href="/upload" className="relative">
+            <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.92} duration={4} className="opacity-50 rounded-xl" />
+            <PrimaryButton className="relative px-4 py-2.5 text-[13.5px]">
               <Plus size={15} /> New upload
             </PrimaryButton>
           </Link>
@@ -145,48 +151,47 @@ export default async function DashboardPage() {
           </div>
         </Reveal>
       ) : (
-        <div className="flex flex-col gap-2.5">
-          {projects.map((p, i) => (
-            <Reveal key={p.id} delay={Math.min(i, 6) * 45}>
-              <Link
-                href={p.status === "done" ? `/jobs/${p.id}/results` : `/jobs/${p.id}`}
-                className="nova-card nova-card-select rounded-2xl px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-violet-soft">
-                    {p.upload?.content_type === "music" ? (
-                      <Music size={16} className="text-violet" />
-                    ) : (
-                      <Mic size={16} className="text-coral" />
-                    )}
-                  </div>
-                  <div>
-                    <div className="text-[14px] text-text">{p.upload?.file_name ?? "Untitled upload"}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-muted">
-                      <Clock size={11} /> {timeAgo(p.created_at)}
-                      {p.upload?.visual_source === "generate" && (
-                        <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-violet-soft text-violet flex items-center gap-1">
-                          <Wand2 size={9} /> generated visuals
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1.5 nova-mono text-[12.5px] text-muted">
-                  {p.status === "done" ? (
-                    <>
-                      <FolderOpen size={13} /> {p.clips?.[0]?.count ?? 0} clips
-                    </>
-                  ) : p.status === "failed" ? (
-                    <span className="text-coral">Failed</span>
+        <AnimatedGroup preset="blur-slide" className="flex flex-col gap-2.5">
+          {projects.map((p) => (
+            <Link
+              key={p.id}
+              href={p.status === "done" ? `/jobs/${p.id}/results` : `/jobs/${p.id}`}
+              className="nova-card nova-card-select rounded-2xl px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
+            >
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-violet-soft">
+                  {p.upload?.content_type === "music" ? (
+                    <Music size={16} className="text-violet" />
                   ) : (
-                    STATUS_LABEL[p.status]
+                    <Mic size={16} className="text-coral" />
                   )}
                 </div>
-              </Link>
-            </Reveal>
+                <div>
+                  <div className="text-[14px] text-text">{p.upload?.file_name ?? "Untitled upload"}</div>
+                  <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-muted">
+                    <Clock size={11} /> {timeAgo(p.created_at)}
+                    {p.upload?.visual_source === "generate" && (
+                      <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-violet-soft text-violet flex items-center gap-1">
+                        <Wand2 size={9} /> generated visuals
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 nova-mono text-[12.5px] text-muted">
+                {p.status === "done" ? (
+                  <>
+                    <FolderOpen size={13} /> {p.clips?.[0]?.count ?? 0} clips
+                  </>
+                ) : p.status === "failed" ? (
+                  <span className="text-coral">Failed</span>
+                ) : (
+                  STATUS_LABEL[p.status]
+                )}
+              </div>
+            </Link>
           ))}
-        </div>
+        </AnimatedGroup>
       )}
     </div>
   );

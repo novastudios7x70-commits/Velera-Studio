@@ -8,6 +8,9 @@ import { Reveal } from "@/components/ui/Reveal";
 import { KineticWords } from "@/components/ui/KineticWords";
 import { HeroWithMockup } from "@/components/blocks/hero-with-mockup";
 import { HowItWorksTimeline } from "@/components/blocks/how-it-works-timeline";
+import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
+import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 
 const STEPS = [
   { icon: FileText, title: "Analyze", copy: "We transcribe spoken content or read the energy and mood of a track." },
@@ -158,24 +161,23 @@ export default function Home() {
       <Marquee />
 
       {/* --- Content paths, slightly tilted like pinned mood-board cards --- */}
-      <div className="max-w-5xl mx-auto px-6 py-24 w-full grid sm:grid-cols-3 gap-6 sm:gap-5">
-        {CONTENT_PATHS.map((c, i) => (
-          <Reveal key={c.title} delay={i * 90}>
+      <AnimatedGroup preset="blur-slide" className="max-w-5xl mx-auto px-6 py-24 w-full grid sm:grid-cols-3 gap-6 sm:gap-5">
+        {CONTENT_PATHS.map((c) => (
+          <div
+            key={c.title}
+            className={`nova-card rounded-2xl p-5 transition-transform duration-300 hover:rotate-0 hover:-translate-y-1 ${c.tilt}`}
+          >
             <div
-              className={`nova-card rounded-2xl p-5 transition-transform duration-300 hover:rotate-0 hover:-translate-y-1 ${c.tilt}`}
+              className="w-9 h-9 rounded-xl flex items-center justify-center mb-3.5"
+              style={{ background: c.accent === "violet" ? "var(--violet-soft)" : "var(--coral-soft)" }}
             >
-              <div
-                className="w-9 h-9 rounded-xl flex items-center justify-center mb-3.5"
-                style={{ background: c.accent === "violet" ? "var(--violet-soft)" : "var(--coral-soft)" }}
-              >
-                <c.icon size={17} className={c.accent === "violet" ? "text-violet" : "text-coral"} />
-              </div>
-              <div className="nova-display font-medium text-[14.5px] text-text mb-1.5">{c.title}</div>
-              <div className="text-[12.5px] text-muted leading-relaxed">{c.copy}</div>
+              <c.icon size={17} className={c.accent === "violet" ? "text-violet" : "text-coral"} />
             </div>
-          </Reveal>
+            <div className="nova-display font-medium text-[14.5px] text-text mb-1.5">{c.title}</div>
+            <div className="text-[12.5px] text-muted leading-relaxed">{c.copy}</div>
+          </div>
         ))}
-      </div>
+      </AnimatedGroup>
 
       <div id="how-it-works" className="scroll-mt-20">
         <Reveal>
@@ -226,18 +228,26 @@ export default function Home() {
                 filter: "blur(10px)",
               }}
             />
-            <h2 className="nova-display font-semibold mb-3 text-[26px] sm:text-[30px] text-text tracking-[-0.02em] relative">
+            <TextEffect
+              as="h2"
+              per="word"
+              preset="fade-in-blur"
+              className="nova-display font-semibold mb-3 text-[26px] sm:text-[30px] text-text tracking-[-0.02em] relative"
+            >
               Post more, film less.
-            </h2>
+            </TextEffect>
             <p className="mb-8 mx-auto max-w-[420px] text-muted text-[14.5px] leading-relaxed relative">
               Your first 3 clips are free — no card, no catch. See what Velora Studio
               finds in your next upload.
             </p>
-            <Link href="/signup" className="inline-flex relative">
-              <PrimaryButton className="px-8 py-3.5 text-[15px]">
-                Start free <ArrowRight size={17} />
-              </PrimaryButton>
-            </Link>
+            <div className="relative inline-block">
+              <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-70 rounded-xl" />
+              <Link href="/signup" className="inline-flex relative">
+                <PrimaryButton className="px-8 py-3.5 text-[15px]">
+                  Start free <ArrowRight size={17} />
+                </PrimaryButton>
+              </Link>
+            </div>
           </div>
         </Reveal>
       </div>

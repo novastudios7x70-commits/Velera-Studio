@@ -9,6 +9,7 @@ export type PresetType = "fade" | "slide" | "scale" | "blur" | "blur-slide" | "z
 export type AnimatedGroupProps = {
   children: ReactNode;
   className?: string;
+  style?: React.CSSProperties;
   variants?: {
     container?: Variants;
     item?: Variants;
@@ -91,7 +92,7 @@ const addDefaultVariants = (variants: Variants) => ({
   visible: { ...defaultItemVariants.visible, ...variants.visible },
 });
 
-export function AnimatedGroup({ children, className, variants, preset, as = "div", asChild = "div" }: AnimatedGroupProps) {
+export function AnimatedGroup({ children, className, style, variants, preset, as = "div", asChild = "div" }: AnimatedGroupProps) {
   const selectedVariants = {
     item: addDefaultVariants(preset ? presetVariants[preset] : {}),
     container: addDefaultVariants(defaultContainerVariants),
@@ -103,7 +104,7 @@ export function AnimatedGroup({ children, className, variants, preset, as = "div
   const MotionChild = React.useMemo(() => motion.create(asChild as keyof React.JSX.IntrinsicElements), [asChild]);
 
   return (
-    <MotionComponent initial="hidden" animate="visible" variants={containerVariants} className={className}>
+    <MotionComponent initial="hidden" animate="visible" variants={containerVariants} className={className} style={style}>
       {React.Children.map(children, (child, index) => (
         <MotionChild key={index} variants={itemVariants}>
           {child}

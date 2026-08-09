@@ -8,6 +8,9 @@ import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { ChromeBlob3D } from "@/components/ui/ChromeBlob3D";
+import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
+import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import { signUpAction, type AuthActionState } from "@/lib/auth-actions";
 import { PLANS } from "@/lib/design-tokens";
 
@@ -43,7 +46,9 @@ export function SignupForm() {
             <Link href="/" className="flex items-center gap-1 mb-8 text-muted text-[13px]">
               <ArrowLeft size={14} /> back
             </Link>
-            <h1 className="nova-display font-semibold mb-1 text-[26px] text-text">3 clips, free</h1>
+            <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[26px] text-text">
+              3 clips, free
+            </TextEffect>
             <p className="mb-7 text-[13.5px] text-muted">No credit card. No time limit — use them whenever.</p>
 
             <div className="nova-card rounded-2xl p-6" style={{ backdropFilter: "blur(8px)" }}>
@@ -55,13 +60,13 @@ export function SignupForm() {
                 <input type="hidden" name="plan" value={plan} />
                 <div className="mt-2">
                   <div className="text-[12px] text-muted mb-2">Pick a plan to start with</div>
-                  <div className="grid grid-cols-3 gap-2">
+                  <AnimatedGroup preset="blur-slide" className="grid grid-cols-3 gap-2">
                     {PLANS.filter((p) => p.price).map((p) => (
                       <button
                         key={p.id}
                         type="button"
                         onClick={() => setPlan(p.id)}
-                        className="nova-card-select rounded-xl py-3 text-center"
+                        className="nova-card-select rounded-xl py-3 text-center w-full"
                         style={{
                           background: plan === p.id ? "var(--violet-soft)" : "var(--void)",
                           border: `1px solid ${plan === p.id ? "var(--violet)" : "var(--line)"}`,
@@ -71,7 +76,7 @@ export function SignupForm() {
                         <div className="nova-mono text-[10.5px] text-muted mt-0.5">${p.price}/mo</div>
                       </button>
                     ))}
-                  </div>
+                  </AnimatedGroup>
                 </div>
 
                 <label className="flex items-start gap-2.5 mt-3 text-[12px] text-muted">
@@ -95,9 +100,12 @@ export function SignupForm() {
 
                 {state.error && <p className="text-[12.5px] text-coral mt-1">{state.error}</p>}
 
-                <PrimaryButton type="submit" disabled={pending} className="w-full py-3.5 text-[14.5px] mt-3 mb-1">
-                  {pending ? "Creating your account…" : "Start free trial"}
-                </PrimaryButton>
+                <div className="relative mt-3 mb-1">
+                  <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-60 rounded-xl" />
+                  <PrimaryButton type="submit" disabled={pending} className="relative w-full py-3.5 text-[14.5px]">
+                    {pending ? "Creating your account…" : "Start free trial"}
+                  </PrimaryButton>
+                </div>
               </form>
             </div>
 

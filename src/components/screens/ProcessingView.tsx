@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { Loader2, AlertTriangle } from "lucide-react";
 import { StepPill } from "@/components/ui/StepPill";
 import { GhostButton } from "@/components/ui/Button";
+import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import { createClient } from "@/lib/supabase/client";
 import type { AudioSource, ContentType, Job, JobStatus, VisualSource } from "@/lib/database.types";
 
@@ -81,7 +83,9 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
         <div className="mx-auto mb-7 w-16 h-16 rounded-2xl flex items-center justify-center bg-coral/10">
           <AlertTriangle size={26} className="text-coral" />
         </div>
-        <h1 className="nova-display font-semibold mb-1 text-[20px] text-text">Something went wrong</h1>
+        <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
+          Something went wrong
+        </TextEffect>
         <p className="mb-6 text-[13.5px] text-muted">
           {job.error_message ?? "This upload couldn't be processed. Your clip credit has been refunded."}
         </p>
@@ -98,10 +102,15 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
 
   return (
     <div className="nova-fade-in max-w-md mx-auto px-6 py-24 text-center w-full">
-      <div className="mx-auto mb-7 w-16 h-16 rounded-2xl flex items-center justify-center bg-violet-soft">
-        <Loader2 size={26} className="text-violet animate-spin" />
+      <div className="relative mx-auto mb-7 w-16 h-16">
+        <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="strong" scale={1.4} duration={3.5} className="opacity-40 rounded-2xl" />
+        <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center bg-violet-soft">
+          <Loader2 size={26} className="text-violet animate-spin" />
+        </div>
       </div>
-      <h1 className="nova-display font-semibold mb-1 text-[20px] text-text">Building your clips</h1>
+      <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
+        Building your clips
+      </TextEffect>
       <p className="mb-8 text-[13.5px] text-muted">{job.upload.file_name}</p>
 
       <div className="rounded-full h-1.5 mb-8 overflow-hidden bg-line">

@@ -3,6 +3,9 @@ import { Check } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { PLANS } from "@/lib/design-tokens";
 import { CheckoutButton } from "@/components/BillingButtons";
+import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
+import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 
 export default async function PricingPage() {
   const supabase = await createClient();
@@ -17,11 +20,13 @@ export default async function PricingPage() {
   return (
     <div className="nova-fade-in max-w-4xl mx-auto px-6 py-14 w-full">
       <div className="text-center mb-10">
-        <h1 className="nova-display font-semibold mb-1.5 text-[24px] text-text">Simple pricing, cancel anytime</h1>
+        <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1.5 text-[24px] text-text">
+          Simple pricing, cancel anytime
+        </TextEffect>
         <p className="text-[14px] text-muted">3 clips free on any plan. No credit card until you upgrade.</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <AnimatedGroup preset="blur-slide" className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {PLANS.map((p) => {
           const active = profile?.plan === p.id;
           return (
@@ -60,16 +65,28 @@ export default async function PricingPage() {
                   Current plan
                 </div>
               ) : p.price ? (
-                <CheckoutButton
-                  plan={p.id as "creator" | "studio"}
-                  // Logged-out clicks route to signup (the actual 3-clip,
-                  // no-card trial), so "free trial" is accurate there — but
-                  // for an already-signed-up user this button goes straight
-                  // to a paid Stripe checkout with no trial period, so
-                  // calling it a "free trial" would be misleading.
-                  label={user ? `Upgrade to ${p.name}` : "Start free trial"}
-                  loggedIn={!!user}
-                />
+                <div className="relative">
+                  {p.popular && (
+                    <GlowEffect
+                      colors={["#A855F7", "#D4AF37", "#E63946"]}
+                      mode="breathe"
+                      blur="soft"
+                      scale={0.94}
+                      duration={4}
+                      className="opacity-60 rounded-[10px]"
+                    />
+                  )}
+                  <CheckoutButton
+                    plan={p.id as "creator" | "studio"}
+                    // Logged-out clicks route to signup (the actual 3-clip,
+                    // no-card trial), so "free trial" is accurate there — but
+                    // for an already-signed-up user this button goes straight
+                    // to a paid Stripe checkout with no trial period, so
+                    // calling it a "free trial" would be misleading.
+                    label={user ? `Upgrade to ${p.name}` : "Start free trial"}
+                    loggedIn={!!user}
+                  />
+                </div>
               ) : (
                 <Link
                   href="/contact"
@@ -81,7 +98,7 @@ export default async function PricingPage() {
             </div>
           );
         })}
-      </div>
+      </AnimatedGroup>
     </div>
   );
 }
