@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/shadcn/button";
 import { Mockup } from "@/components/ui/shadcn/mockup";
 import { Glow } from "@/components/ui/shadcn/glow";
 import { OrganicBlobs } from "@/components/ui/OrganicBlobs";
+import { HeroChrome3D } from "@/components/ui/HeroChrome3D";
 
 /**
  * Adapted from 21st.dev's "Hero with Mockup" (serafimcloud/hero-with-mockup).
@@ -62,6 +63,7 @@ export function HeroWithMockup({
           </div>
 
           <div className="relative mx-auto lg:mx-0 w-full max-w-[280px] nova-fade-in" style={{ animationDelay: "220ms" }}>
+            <HeroChrome3D className="absolute -inset-x-32 -inset-y-24 pointer-events-none -z-10" />
             <Mockup type="mobile" className="mx-auto">
               {mockup}
             </Mockup>
