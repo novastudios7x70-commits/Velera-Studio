@@ -28,6 +28,10 @@ export default function LoginPage() {
         <Field icon={Mail} type="email" name="email" placeholder="you@email.com" required autoComplete="email" />
         <Field icon={Lock} type="password" name="password" placeholder="Password" required autoComplete="current-password" />
 
+        <Link href="/forgot-password" className="text-[12.5px] text-violet -mt-1 self-end">
+          Forgot password?
+        </Link>
+
         {state.error && <p className="text-[12.5px] text-coral">{state.error}</p>}
 
         <div className="relative mt-2">

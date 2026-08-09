@@ -103,3 +103,58 @@ export async function logOutAction() {
   revalidatePath("/", "layout");
   redirect("/");
 }
+
+export async function forgotPasswordAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const email = String(formData.get("email") ?? "").trim();
+
+  if (!email) {
+    return { error: "Enter your email address." };
+  }
+
+  const supabase = await createClient();
+  await supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=/reset-password`,
+  });
+
+  // Always return the same message whether or not the email is registered —
+  // confirming/denying an account's existence here would leak who has an
+  // account, the same reason signUpAction doesn't distinguish "already
+  // registered" from "confirmation sent."
+  return {
+    error: null,
+    info: `If an account exists for ${email}, we've sent a link to reset your password.`,
+  };
+}
+
+export async function resetPasswordAction(
+  _prev: AuthActionState,
+  formData: FormData,
+): Promise<AuthActionState> {
+  const password = String(formData.get("password") ?? "");
+
+  if (password.length < 8) {
+    return { error: "Password must be at least 8 characters." };
+  }
+
+  const supabase = await createClient();
+  // Only valid immediately after the recovery-link redirect from
+  // auth/callback, which exchanges the emailed code for a short-lived
+  // session scoped to this one update.
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: "This reset link has expired — request a new one." };
+  }
+
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
