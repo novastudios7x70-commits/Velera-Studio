@@ -16,7 +16,7 @@ export function OrganicBlobs({ className }: { className?: string }) {
           width: "50%",
           maxWidth: 520,
           aspectRatio: "1 / 1",
-          background: "radial-gradient(circle at 35% 35%, var(--violet), transparent 72%)", // purple
+          background: "radial-gradient(circle at 35% 35%, var(--gold), transparent 72%)", // gold
           filter: "blur(50px)",
           opacity: 0.5,
         }}
@@ -30,7 +30,7 @@ export function OrganicBlobs({ className }: { className?: string }) {
           width: "38%",
           maxWidth: 420,
           aspectRatio: "1 / 1",
-          background: "radial-gradient(circle at 60% 40%, var(--coral), transparent 70%)", // gold
+          background: "radial-gradient(circle at 60% 40%, var(--plum), transparent 70%)", // plum, rare secondary
           filter: "blur(45px)",
           opacity: 0.45,
         }}
@@ -44,7 +44,7 @@ export function OrganicBlobs({ className }: { className?: string }) {
           width: "34%",
           maxWidth: 380,
           aspectRatio: "1 / 1",
-          background: "radial-gradient(circle at 45% 55%, var(--ruby), transparent 75%)", // red
+          background: "radial-gradient(circle at 45% 55%, #dbb44a, transparent 75%)", // secondary gold tone
           filter: "blur(55px)",
           opacity: 0.4,
         }}

@@ -25,13 +25,15 @@ interface BlobConfig {
 // Spread wide across the full canvas width — this renders full-bleed
 // behind the page now, not in a boxed side panel, so the form's opaque
 // card covers the center and the blobs read as flanking it left/right.
+// Gold-led, per the v2 palette — plum kept only as a rare secondary (two
+// of six), not a third co-equal color in the mix.
 const BLOBS: BlobConfig[] = [
-  { position: [-3.4, 0.6, -1], scale: 0.95, color: "#A855F7", distort: 0.45, speed: 1.6, rotSpeed: 1 },
-  { position: [3.6, 1.3, -1.5], scale: 0.65, color: "#D4AF37", distort: 0.35, speed: 1.1, rotSpeed: 1.4 },
-  { position: [-4.2, -1.6, -2], scale: 0.5, color: "#E63946", distort: 0.4, speed: 1.9, rotSpeed: 0.7 },
-  { position: [4.3, -1, -1.8], scale: 0.4, color: "#c084fc", distort: 0.5, speed: 2.2, rotSpeed: 1.8 },
-  { position: [2.9, 2.4, -2.5], scale: 0.32, color: "#D4AF37", distort: 0.3, speed: 1.4, rotSpeed: 1.2 },
-  { position: [-4.8, 2.4, -2], scale: 0.34, color: "#E63946", distort: 0.38, speed: 1.7, rotSpeed: 0.9 },
+  { position: [-3.4, 0.6, -1], scale: 0.95, color: "#C9A227", distort: 0.45, speed: 1.6, rotSpeed: 1 },
+  { position: [3.6, 1.3, -1.5], scale: 0.65, color: "#6E5A9E", distort: 0.35, speed: 1.1, rotSpeed: 1.4 },
+  { position: [-4.2, -1.6, -2], scale: 0.5, color: "#dbb44a", distort: 0.4, speed: 1.9, rotSpeed: 0.7 },
+  { position: [4.3, -1, -1.8], scale: 0.4, color: "#8a6b1a", distort: 0.5, speed: 2.2, rotSpeed: 1.8 },
+  { position: [2.9, 2.4, -2.5], scale: 0.32, color: "#6E5A9E", distort: 0.3, speed: 1.4, rotSpeed: 1.2 },
+  { position: [-4.8, 2.4, -2], scale: 0.34, color: "#C9A227", distort: 0.38, speed: 1.7, rotSpeed: 0.9 },
 ];
 
 // A fixed camera distance only shows the wide blob spread correctly on a
@@ -92,10 +94,10 @@ export function ChromeBlob3D({ className }: { className?: string }) {
         <Suspense fallback={null}>
           <ResponsiveCamera />
           <ambientLight intensity={1.1} />
-          <hemisphereLight args={["#e9d5ff", "#1a1024", 1.2]} />
-          <pointLight position={[3, 2, 4]} intensity={70} color="#D4AF37" />
-          <pointLight position={[-3, -2, 2]} intensity={60} color="#E63946" />
-          <pointLight position={[0, 3, -2]} intensity={45} color="#A855F7" />
+          <hemisphereLight args={["#f5e6c8", "#18181b", 1.2]} />
+          <pointLight position={[3, 2, 4]} intensity={70} color="#dbb44a" />
+          <pointLight position={[-3, -2, 2]} intensity={55} color="#6E5A9E" />
+          <pointLight position={[0, 3, -2]} intensity={45} color="#C9A227" />
           <pointLight position={[-2, 3, 3]} intensity={35} color="#ffffff" />
           {BLOBS.map((blob, i) => (
             <DistortedSphere key={i} {...blob} />

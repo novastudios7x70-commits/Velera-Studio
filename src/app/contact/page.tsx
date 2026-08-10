@@ -6,7 +6,6 @@ import { ArrowLeft, Mail, User, Building2, Check } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 
 export default function ContactPage() {
   const [name, setName] = useState("");
@@ -67,20 +66,15 @@ export default function ContactPage() {
               />
             </div>
           </div>
-          {error && <p className="text-[12.5px] text-coral mb-3">{error}</p>}
-          <div className="relative">
-            {!!(name && company && email) && !submitting && (
-              <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-60 rounded-xl" />
-            )}
-            <PrimaryButton onClick={handleSubmit} disabled={submitting || !name || !company || !email} className="relative w-full py-3.5 text-[14.5px]">
-              {submitting ? "Sending…" : "Send message"}
-            </PrimaryButton>
-          </div>
+          {error && <p className="text-[12.5px] text-ruby mb-3">{error}</p>}
+          <PrimaryButton onClick={handleSubmit} disabled={submitting || !name || !company || !email} className="w-full py-3.5 text-[14.5px]">
+            {submitting ? "Sending…" : "Send message"}
+          </PrimaryButton>
         </>
       ) : (
         <div className="text-center py-10">
-          <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-violet-soft">
-            <Check size={22} className="text-violet" />
+          <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-gold-soft">
+            <Check size={22} className="text-gold" />
           </div>
           <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-2 text-[20px] text-text">
             Message sent

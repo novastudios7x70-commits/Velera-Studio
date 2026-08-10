@@ -6,7 +6,6 @@ import { Lock } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import { resetPasswordAction, type AuthActionState } from "@/lib/auth-actions";
 
 const initialState: AuthActionState = { error: null };
@@ -24,19 +23,16 @@ export default function ResetPasswordPage() {
       <form action={formAction} className="flex flex-col gap-3">
         <Field icon={Lock} type="password" name="password" placeholder="New password" required minLength={8} autoComplete="new-password" />
 
-        {state.error && <p className="text-[12.5px] text-coral">{state.error}</p>}
+        {state.error && <p className="text-[12.5px] text-ruby">{state.error}</p>}
 
-        <div className="relative mt-2">
-          <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-50 rounded-xl" />
-          <PrimaryButton type="submit" disabled={pending} className="relative w-full py-3.5 text-[14.5px]">
-            {pending ? "Updating…" : "Update password"}
-          </PrimaryButton>
-        </div>
+        <PrimaryButton type="submit" disabled={pending} className="w-full py-3.5 text-[14.5px] mt-2">
+          {pending ? "Updating…" : "Update password"}
+        </PrimaryButton>
       </form>
 
       {state.error?.includes("expired") && (
         <p className="text-center text-[12.5px] text-muted mt-5">
-          <Link href="/forgot-password" className="text-violet">
+          <Link href="/forgot-password" className="text-gold">
             Request a new link
           </Link>
         </p>

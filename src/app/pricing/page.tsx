@@ -33,10 +33,10 @@ export default async function PricingPage() {
             <div
               key={p.id}
               className="nova-card rounded-2xl p-6 flex flex-col relative"
-              style={{ borderColor: p.popular ? "var(--violet)" : "var(--line)", borderWidth: p.popular ? 1.5 : 1 }}
+              style={{ borderColor: p.popular ? "var(--gold)" : "var(--line)", borderWidth: p.popular ? 1.5 : 1 }}
             >
               {p.popular && (
-                <div className="nova-mono absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] bg-violet text-white">
+                <div className="nova-mono absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] bg-gold text-white">
                   most popular
                 </div>
               )}
@@ -55,7 +55,7 @@ export default async function PricingPage() {
               <div className="flex flex-col gap-2.5 mb-6 flex-1">
                 {p.features.map((f) => (
                   <div key={f} className="flex items-start gap-2">
-                    <Check size={14} className="text-violet mt-0.5 shrink-0" />
+                    <Check size={14} className="text-gold mt-0.5 shrink-0" />
                     <span className="text-[13px] text-text">{f}</span>
                   </div>
                 ))}
@@ -68,7 +68,7 @@ export default async function PricingPage() {
                 <div className="relative">
                   {p.popular && (
                     <GlowEffect
-                      colors={["#A855F7", "#D4AF37", "#E63946"]}
+                      colors={["#dbb44a", "#8a6b1a"]}
                       mode="breathe"
                       blur="soft"
                       scale={0.94}

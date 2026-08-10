@@ -1,19 +1,26 @@
-// Design tokens ported 1:1 from the Velora Studio UX reference (velora_demo.jsx).
-// Keep this file as the single source of truth for the visual language —
-// any new component should pull colors from here rather than hardcoding hex values.
-
-export const INK = "#05030A";
-export const VOID = "#0B0714"; // near-black with a faint purple tint
-export const PANEL = "#1A1024"; // dark purple-black card surface
-export const LINE = "rgba(255,255,255,0.10)";
-export const VIOLET = "#A855F7"; // royal purple, primary accent
-export const VIOLET_SOFT = "rgba(168,85,247,0.16)";
-export const CORAL = "#D4AF37"; // gold, second accent
-export const CORAL_SOFT = "rgba(212,175,55,0.16)";
-export const RUBY = "#E63946"; // deep red, third accent
-export const RUBY_SOFT = "rgba(230,57,70,0.16)";
-export const TEXT = "#F5F1FA";
-export const MUTED = "#9C8FAE";
+// Design tokens — single source of truth for the visual language. Any new
+// component should pull colors from here rather than hardcoding hex values.
+//
+// v2 palette: a graphite/charcoal foundation (post-production-studio dark,
+// not a purple-tinted void) with gold promoted to the one dominant brand
+// accent — "AI purple" is the exact look this product needs to avoid, and
+// gold reads as film/award/premium instead. Plum (the old primary violet,
+// deepened and desaturated) is kept only as a rare secondary — logo
+// gradient, the odd highlight — not stamped on every button and badge.
+// Ruby stays reserved strictly for destructive/error states.
+export const INK = "#0A0A0B"; // true near-black, minimal tint
+export const VOID = "#0C0C0E"; // page background — neutral graphite
+export const PANEL = "#18181B"; // graphite panel/card surface
+export const ELEVATED = "#1F2023"; // modals, popovers, active surfaces
+export const LINE = "rgba(255,255,255,0.07)";
+export const GOLD = "#C9A227"; // primary brand accent — cinematic gold, not AI purple
+export const GOLD_SOFT = "rgba(201,162,39,0.14)";
+export const PLUM = "#6E5A9E"; // rare secondary — deepened, desaturated from the old primary violet
+export const PLUM_SOFT = "rgba(110,90,158,0.14)";
+export const RUBY = "#E63946"; // destructive/error only
+export const RUBY_SOFT = "rgba(230,57,70,0.14)";
+export const TEXT = "#F2F0EC";
+export const MUTED = "#8F8D92";
 
 export const PLATFORMS = [
   { id: "tiktok", label: "TikTok" },

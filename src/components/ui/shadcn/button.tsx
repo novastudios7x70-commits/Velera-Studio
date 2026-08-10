@@ -11,7 +11,7 @@ const buttonVariants = cva(
       variant: {
         default: "nova-btn-primary text-white",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-line bg-transparent text-text hover:border-violet/50",
+        outline: "border border-line bg-transparent text-text hover:border-gold/50",
         secondary: "bg-secondary text-secondary-foreground border border-line",
         ghost: "text-text hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",

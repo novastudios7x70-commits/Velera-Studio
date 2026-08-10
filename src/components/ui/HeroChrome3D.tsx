@@ -40,7 +40,7 @@ function MainOrb() {
   });
   return (
     <Sphere ref={meshRef} args={[1, 128, 128]} scale={1.55}>
-      <MeshDistortMaterial color="#A855F7" attach="material" distort={0.38} speed={1.4} roughness={0.15} metalness={0.85} />
+      <MeshDistortMaterial color="#C9A227" attach="material" distort={0.38} speed={1.4} roughness={0.15} metalness={0.85} />
     </Sphere>
   );
 }
@@ -56,7 +56,7 @@ function SatelliteOrb() {
   });
   return (
     <Sphere ref={meshRef} args={[1, 64, 64]} scale={0.55} position={[1.05, -0.75, 0.6]}>
-      <MeshDistortMaterial color="#D4AF37" attach="material" distort={0.42} speed={1.8} roughness={0.2} metalness={0.8} />
+      <MeshDistortMaterial color="#6E5A9E" attach="material" distort={0.42} speed={1.8} roughness={0.2} metalness={0.8} />
     </Sphere>
   );
 }
@@ -68,10 +68,10 @@ export function HeroChrome3D({ className }: { className?: string }) {
         <Suspense fallback={null}>
           <ResponsiveCamera />
           <ambientLight intensity={0.9} />
-          <hemisphereLight args={["#e9d5ff", "#1a1024", 1.1]} />
-          <pointLight position={[2.5, 1.5, 3]} intensity={90} color="#E63946" />
-          <pointLight position={[-2, -1.5, 2]} intensity={70} color="#D4AF37" />
-          <pointLight position={[0, 2.5, 1.5]} intensity={55} color="#c084fc" />
+          <hemisphereLight args={["#f5e6c8", "#18181b", 1.1]} />
+          <pointLight position={[2.5, 1.5, 3]} intensity={90} color="#dbb44a" />
+          <pointLight position={[-2, -1.5, 2]} intensity={55} color="#6E5A9E" />
+          <pointLight position={[0, 2.5, 1.5]} intensity={40} color="#f5e6c8" />
           <pointLight position={[-1.5, 2, 2.5]} intensity={30} color="#ffffff" />
           <MainOrb />
           <SatelliteOrb />

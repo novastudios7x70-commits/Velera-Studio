@@ -1,18 +1,26 @@
 @import "tailwindcss";
 
 :root {
-  --ink: #05030a;
-  --void: #0b0714;
-  --panel: #1a1024;
-  --line: rgba(255, 255, 255, 0.1);
-  --violet: #a855f7;
-  --violet-soft: rgba(168, 85, 247, 0.16);
-  --coral: #d4af37;
-  --coral-soft: rgba(212, 175, 55, 0.16);
+  /* Graphite/charcoal studio foundation — deliberately not the
+     purple-tinted void this app used to run on. Three surface levels
+     (void → panel → elevated) instead of one flat dark background. */
+  --ink: #0a0a0b;
+  --void: #0c0c0e;
+  --panel: #18181b;
+  --elevated: #1f2023;
+  --line: rgba(255, 255, 255, 0.07);
+  /* Gold is the one dominant brand accent — cinematic/premium, not "AI
+     purple." Plum is the old primary violet, deepened and demoted to a
+     rare secondary (logo gradient, the odd highlight) rather than being
+     stamped on every button and badge. Ruby is destructive/error only. */
+  --gold: #c9a227;
+  --gold-soft: rgba(201, 162, 39, 0.14);
+  --plum: #6e5a9e;
+  --plum-soft: rgba(110, 90, 158, 0.14);
   --ruby: #e63946;
-  --ruby-soft: rgba(230, 57, 70, 0.16);
-  --text: #f5f1fa;
-  --muted: #9c8fae;
+  --ruby-soft: rgba(230, 57, 70, 0.14);
+  --text: #f2f0ec;
+  --muted: #8f8d92;
 
   /*
    * shadcn/ui semantic token bridge — maps shadcn's expected variable
@@ -25,32 +33,33 @@
   --foreground: var(--text);
   --card: var(--panel);
   --card-foreground: var(--text);
-  --popover: var(--panel);
+  --popover: var(--elevated);
   --popover-foreground: var(--text);
-  --primary: var(--violet);
-  --primary-foreground: #ffffff;
+  --primary: var(--gold);
+  --primary-foreground: #0c0c0e;
   --secondary: var(--panel);
   --secondary-foreground: var(--text);
   --muted-foreground: var(--muted);
-  --accent: var(--violet-soft);
+  --accent: var(--gold-soft);
   --accent-foreground: var(--text);
   --destructive: var(--ruby);
   --destructive-foreground: #ffffff;
   --border: var(--line);
   --input: var(--line);
-  --ring: var(--violet);
-  --radius: 0.75rem;
+  --ring: var(--gold);
+  --radius: 0.625rem;
 }
 
 @theme inline {
   --color-ink: var(--ink);
   --color-void: var(--void);
   --color-panel: var(--panel);
+  --color-elevated: var(--elevated);
   --color-line: var(--line);
-  --color-violet: var(--violet);
-  --color-violet-soft: var(--violet-soft);
-  --color-coral: var(--coral);
-  --color-coral-soft: var(--coral-soft);
+  --color-plum: var(--plum);
+  --color-plum-soft: var(--plum-soft);
+  --color-gold: var(--gold);
+  --color-gold-soft: var(--gold-soft);
   --color-ruby: var(--ruby);
   --color-ruby-soft: var(--ruby-soft);
   --color-text: var(--text);
@@ -105,7 +114,7 @@ body {
 .nova-glow {
   box-shadow:
     0 0 0 1px var(--line),
-    0 20px 60px -20px rgba(168, 85, 247, 0.35);
+    0 20px 60px -20px rgba(201, 162, 39, 0.3);
 }
 
 .nova-fade-in {
@@ -193,13 +202,14 @@ body {
 }
 
 .nova-btn-primary {
-  background: linear-gradient(135deg, var(--violet), #6b21a8);
+  background: linear-gradient(135deg, #dbb44a, var(--gold));
+  color: #0c0c0e;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .nova-btn-primary:hover {
   transform: translateY(-1px);
-  box-shadow: 0 12px 30px -10px rgba(168, 85, 247, 0.45);
+  box-shadow: 0 12px 30px -10px rgba(201, 162, 39, 0.4);
 }
 
 .nova-btn-primary:disabled {
@@ -227,9 +237,9 @@ body {
 }
 
 .nova-card-select:hover {
-  border-color: rgba(168, 85, 247, 0.45);
+  border-color: rgba(201, 162, 39, 0.4);
   transform: translateY(-1px);
-  box-shadow: 0 4px 16px -6px rgba(168, 85, 247, 0.2);
+  box-shadow: 0 4px 16px -6px rgba(201, 162, 39, 0.18);
 }
 
 .nova-noise {

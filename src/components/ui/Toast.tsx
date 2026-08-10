@@ -25,13 +25,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       {toast && (
         <div
           className={`nova-fade-in fixed top-5 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 rounded-xl flex items-center gap-2 bg-panel border text-text text-[13px] ${
-            toast.variant === "error" ? "border-coral" : "border-violet"
+            toast.variant === "error" ? "border-ruby" : "border-gold"
           }`}
         >
           {toast.variant === "error" ? (
-            <AlertCircle size={14} className="text-coral shrink-0" />
+            <AlertCircle size={14} className="text-ruby shrink-0" />
           ) : (
-            <Check size={14} className="text-violet shrink-0" />
+            <Check size={14} className="text-gold shrink-0" />
           )}
           {toast.message}
         </div>

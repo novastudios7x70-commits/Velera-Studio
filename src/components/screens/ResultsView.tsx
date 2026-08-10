@@ -5,7 +5,6 @@ import { DownloadLink } from "@/components/ui/DownloadLink";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import { HOOK_LABELS, PLATFORMS } from "@/lib/design-tokens";
 import type { Clip, ContentType, Job, VisualSource } from "@/lib/database.types";
 
@@ -83,7 +82,7 @@ export function ResultsView({ job, clips }: { job: JobWithUpload; clips: Clip[] 
             <div className="px-3.5 pb-3.5 pt-1 flex flex-col gap-2 flex-1">
               <div className="text-[13px] text-text leading-snug">{g.title}</div>
               <div className="flex items-center justify-between">
-                <span className="nova-mono px-2 py-0.5 rounded-full text-[10px] bg-violet-soft text-violet">
+                <span className="nova-mono px-2 py-0.5 rounded-full text-[10px] bg-gold-soft text-gold">
                   {(g.hookType && HOOK_LABELS[g.hookType]) || g.hookType}
                 </span>
                 <span className="nova-mono text-[10px] text-muted">{formatDuration(g.durationSeconds)}</span>
@@ -92,7 +91,7 @@ export function ResultsView({ job, clips }: { job: JobWithUpload; clips: Clip[] 
                 <div className="flex-1 rounded-full h-1 overflow-hidden bg-line">
                   <div
                     className="h-full rounded-full"
-                    style={{ width: `${g.confidence}%`, background: g.confidence > 85 ? "#4ADE80" : "var(--violet)" }}
+                    style={{ width: `${g.confidence}%`, background: g.confidence > 85 ? "#4ADE80" : "var(--gold)" }}
                   />
                 </div>
                 <span className="nova-mono text-[10px] text-muted">{g.confidence}%</span>
@@ -112,13 +111,12 @@ export function ResultsView({ job, clips }: { job: JobWithUpload; clips: Clip[] 
         ))}
       </AnimatedGroup>
 
-      <div className="mt-10 rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4 bg-violet-soft border border-violet/30">
+      <div className="mt-10 rounded-2xl p-5 flex items-center justify-between flex-wrap gap-4 bg-gold-soft border border-gold/30">
         <div className="text-[13.5px] text-text max-w-[420px]">
           Got more to post? Turn your next upload into clips in the same three steps.
         </div>
-        <Link href="/upload" className="relative">
-          <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.92} duration={4} className="opacity-50 rounded-xl" />
-          <PrimaryButton className="relative px-5 py-2.5 text-[13.5px]">
+        <Link href="/upload">
+          <PrimaryButton className="px-5 py-2.5 text-[13.5px]">
             New upload <ArrowRight size={14} />
           </PrimaryButton>
         </Link>

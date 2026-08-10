@@ -61,7 +61,7 @@ export default function PrivacyPage() {
         <p>
           Depending on where you live, you may have the right to access, correct, export, or delete your
           personal data, and to opt out of any marketing communications. To exercise any of these rights,
-          email <a className="text-violet" href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a> —
+          email <a className="text-gold" href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a> —
           we&apos;ll respond within the timeframe required by applicable law.
         </p>
         <p>
@@ -82,7 +82,7 @@ export default function PrivacyPage() {
 
       <Section title="Contact">
         <p>
-          Questions about this policy: <a className="text-violet" href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a>.
+          Questions about this policy: <a className="text-gold" href={`mailto:${COMPANY.privacyEmail}`}>{COMPANY.privacyEmail}</a>.
           {" "}{COMPANY.legalName}, {COMPANY.physicalAddress}.
         </p>
       </Section>

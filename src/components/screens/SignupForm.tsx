@@ -25,12 +25,12 @@ export function SignupForm() {
   if (state.info) {
     return (
       <div className="nova-fade-in max-w-md mx-auto px-6 py-16 w-full text-center">
-        <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-violet-soft">
-          <MailCheck size={22} className="text-violet" />
+        <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-gold-soft">
+          <MailCheck size={22} className="text-gold" />
         </div>
         <h1 className="nova-display font-semibold mb-2 text-[20px] text-text">Check your email</h1>
         <p className="text-[13.5px] text-muted mb-6">{state.info}</p>
-        <Link href="/login" className="text-[13px] text-violet">
+        <Link href="/login" className="text-[13px] text-gold">
           Go to login
         </Link>
       </div>
@@ -68,8 +68,8 @@ export function SignupForm() {
                         onClick={() => setPlan(p.id)}
                         className="nova-card-select rounded-xl py-3 text-center w-full"
                         style={{
-                          background: plan === p.id ? "var(--violet-soft)" : "var(--void)",
-                          border: `1px solid ${plan === p.id ? "var(--violet)" : "var(--line)"}`,
+                          background: plan === p.id ? "var(--gold-soft)" : "var(--void)",
+                          border: `1px solid ${plan === p.id ? "var(--gold)" : "var(--line)"}`,
                         }}
                       >
                         <div className="nova-display font-medium text-[12.5px] text-text">{p.name}</div>
@@ -80,28 +80,28 @@ export function SignupForm() {
                 </div>
 
                 <label className="flex items-start gap-2.5 mt-3 text-[12px] text-muted">
-                  <input type="checkbox" name="terms_accepted" required className="mt-0.5 accent-violet" />
+                  <input type="checkbox" name="terms_accepted" required className="mt-0.5 accent-gold" />
                   <span>
                     I agree to the{" "}
-                    <Link href="/terms" className="text-violet" target="_blank">
+                    <Link href="/terms" className="text-gold" target="_blank">
                       Terms of Service
                     </Link>{" "}
                     and{" "}
-                    <Link href="/privacy" className="text-violet" target="_blank">
+                    <Link href="/privacy" className="text-gold" target="_blank">
                       Privacy Policy
                     </Link>
                     , and confirm I own or have rights to whatever I upload.
                   </span>
                 </label>
                 <label className="flex items-start gap-2.5 text-[12px] text-muted">
-                  <input type="checkbox" name="marketing_consent" className="mt-0.5 accent-violet" />
+                  <input type="checkbox" name="marketing_consent" className="mt-0.5 accent-gold" />
                   <span>Send me product updates and tips (optional — you can unsubscribe anytime).</span>
                 </label>
 
-                {state.error && <p className="text-[12.5px] text-coral mt-1">{state.error}</p>}
+                {state.error && <p className="text-[12.5px] text-ruby mt-1">{state.error}</p>}
 
                 <div className="relative mt-3 mb-1">
-                  <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-60 rounded-xl" />
+                  <GlowEffect colors={["#dbb44a", "#8a6b1a"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-60 rounded-xl" />
                   <PrimaryButton type="submit" disabled={pending} className="relative w-full py-3.5 text-[14.5px]">
                     {pending ? "Creating your account…" : "Start free trial"}
                   </PrimaryButton>
@@ -111,7 +111,7 @@ export function SignupForm() {
 
             <p className="text-center text-[12.5px] text-muted mt-5">
               Already have an account?{" "}
-              <Link href="/login" className="text-violet">
+              <Link href="/login" className="text-gold">
                 Log in
               </Link>
             </p>

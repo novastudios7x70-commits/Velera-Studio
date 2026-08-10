@@ -6,7 +6,6 @@ import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import type { ContentType, VisualSource, JobStatus } from "@/lib/database.types";
 
 // streak_count only advances/resets inside create_job() when a new upload
@@ -89,7 +88,7 @@ export default async function DashboardPage() {
         <div className="flex items-center gap-2">
           {streak > 0 && (
             <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-line nova-mono text-[12.5px] text-text">
-              <Flame size={14} className="text-coral" />
+              <Flame size={14} className="text-gold" />
               {streak} day{streak === 1 ? "" : "s"}
             </div>
           )}
@@ -99,9 +98,8 @@ export default async function DashboardPage() {
           <Link href="/pricing">
             <GhostButton className="nova-mono px-3.5 py-2.5 text-[12.5px]">{planLabel} plan</GhostButton>
           </Link>
-          <Link href="/upload" className="relative">
-            <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.92} duration={4} className="opacity-50 rounded-xl" />
-            <PrimaryButton className="relative px-4 py-2.5 text-[13.5px]">
+          <Link href="/upload">
+            <PrimaryButton className="px-4 py-2.5 text-[13.5px]">
               <Plus size={15} /> New upload
             </PrimaryButton>
           </Link>
@@ -129,7 +127,7 @@ export default async function DashboardPage() {
               )}
             </div>
             {profile.plan === "trial" && (
-              <Link href="/pricing" className="text-[12.5px] text-violet">
+              <Link href="/pricing" className="text-[12.5px] text-gold">
                 Upgrade for more
               </Link>
             )}
@@ -161,14 +159,14 @@ export default async function DashboardPage() {
                 className="nova-card nova-card-select rounded-2xl px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 relative bg-violet-soft flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 relative bg-gold-soft flex items-center justify-center">
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage CDN thumbnail, no build-time optimization needed
                       <img src={thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
                     ) : p.upload?.content_type === "music" ? (
-                      <Music size={16} className="text-violet" />
+                      <Music size={16} className="text-gold" />
                     ) : (
-                      <Mic size={16} className="text-coral" />
+                      <Mic size={16} className="text-gold" />
                     )}
                   </div>
                   <div>
@@ -176,7 +174,7 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-muted">
                       <Clock size={11} /> {timeAgo(p.created_at)}
                       {p.upload?.visual_source === "generate" && (
-                        <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-violet-soft text-violet flex items-center gap-1">
+                        <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gold-soft text-gold flex items-center gap-1">
                           <Wand2 size={9} /> generated visuals
                         </span>
                       )}
@@ -189,7 +187,7 @@ export default async function DashboardPage() {
                       <FolderOpen size={13} /> {p.clips.length} clips
                     </>
                   ) : p.status === "failed" ? (
-                    <span className="text-coral">Failed</span>
+                    <span className="text-ruby">Failed</span>
                   ) : (
                     STATUS_LABEL[p.status]
                   )}

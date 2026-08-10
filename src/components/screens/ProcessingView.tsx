@@ -80,8 +80,8 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
   if (job.status === "failed") {
     return (
       <div className="nova-fade-in max-w-md mx-auto px-6 py-24 text-center w-full">
-        <div className="mx-auto mb-7 w-16 h-16 rounded-2xl flex items-center justify-center bg-coral/10">
-          <AlertTriangle size={26} className="text-coral" />
+        <div className="mx-auto mb-7 w-16 h-16 rounded-2xl flex items-center justify-center bg-ruby/10">
+          <AlertTriangle size={26} className="text-ruby" />
         </div>
         <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
           Something went wrong
@@ -103,9 +103,9 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
   return (
     <div className="nova-fade-in max-w-md mx-auto px-6 py-24 text-center w-full">
       <div className="relative mx-auto mb-7 w-16 h-16">
-        <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="strong" scale={1.4} duration={3.5} className="opacity-40 rounded-2xl" />
-        <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center bg-violet-soft">
-          <Loader2 size={26} className="text-violet animate-spin" />
+        <GlowEffect colors={["#dbb44a", "#8a6b1a"]} mode="breathe" blur="strong" scale={1.4} duration={3.5} className="opacity-40 rounded-2xl" />
+        <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center bg-gold-soft">
+          <Loader2 size={26} className="text-gold animate-spin" />
         </div>
       </div>
       <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
@@ -116,7 +116,7 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
       <div className="rounded-full h-1.5 mb-8 overflow-hidden bg-line">
         <div
           className="h-full rounded-full transition-[width] duration-500 ease-out"
-          style={{ width: `${pct}%`, background: "linear-gradient(90deg, var(--violet), var(--coral))" }}
+          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #dbb44a, var(--gold))" }}
         />
       </div>
 

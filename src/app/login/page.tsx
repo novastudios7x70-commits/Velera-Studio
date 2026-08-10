@@ -6,7 +6,6 @@ import { ArrowLeft, Mail, Lock } from "lucide-react";
 import { Field } from "@/components/ui/Field";
 import { PrimaryButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import { logInAction, type AuthActionState } from "@/lib/auth-actions";
 
 const initialState: AuthActionState = { error: null };
@@ -28,23 +27,20 @@ export default function LoginPage() {
         <Field icon={Mail} type="email" name="email" placeholder="you@email.com" required autoComplete="email" />
         <Field icon={Lock} type="password" name="password" placeholder="Password" required autoComplete="current-password" />
 
-        <Link href="/forgot-password" className="text-[12.5px] text-violet -mt-1 self-end">
+        <Link href="/forgot-password" className="text-[12.5px] text-gold -mt-1 self-end">
           Forgot password?
         </Link>
 
-        {state.error && <p className="text-[12.5px] text-coral">{state.error}</p>}
+        {state.error && <p className="text-[12.5px] text-ruby">{state.error}</p>}
 
-        <div className="relative mt-2">
-          <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-50 rounded-xl" />
-          <PrimaryButton type="submit" disabled={pending} className="relative w-full py-3.5 text-[14.5px]">
-            {pending ? "Logging in…" : "Log in"}
-          </PrimaryButton>
-        </div>
+        <PrimaryButton type="submit" disabled={pending} className="w-full py-3.5 text-[14.5px] mt-2">
+          {pending ? "Logging in…" : "Log in"}
+        </PrimaryButton>
       </form>
 
       <p className="text-center text-[12.5px] text-muted">
         New here?{" "}
-        <Link href="/signup" className="text-violet">
+        <Link href="/signup" className="text-gold">
           Start a free trial
         </Link>
       </p>

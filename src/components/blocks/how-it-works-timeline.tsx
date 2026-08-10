@@ -38,8 +38,8 @@ export function HowItWorksTimeline({ eyebrow, title, description, steps }: HowIt
           return (
             <li key={stepTitle} className="flex gap-5">
               <div className="flex flex-col items-center">
-                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-line bg-violet-soft">
-                  <Icon className="size-4 text-violet" aria-hidden="true" />
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-line bg-gold-soft">
+                  <Icon className="size-4 text-gold" aria-hidden="true" />
                 </span>
                 {!isLast && <span className="mt-1 w-px flex-1 bg-line" />}
               </div>

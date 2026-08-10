@@ -76,7 +76,7 @@ export function BrandKitForm({ profile }: { profile: Profile }) {
         <div className="text-[12px] text-muted mb-2">Default export platforms</div>
         <div className="flex flex-wrap gap-2">
           {["TikTok", "YouTube Shorts", "Instagram Reels", "Facebook", "Pinterest"].map((p) => (
-            <span key={p} className="nova-mono px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[11.5px] bg-violet-soft text-violet">
+            <span key={p} className="nova-mono px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-[11.5px] bg-gold-soft text-gold">
               <Check size={11} /> {p}
             </span>
           ))}
@@ -95,7 +95,7 @@ export function BrandKitForm({ profile }: { profile: Profile }) {
             setMarketingConsent(e.target.checked);
             save({ marketing_email_consent: e.target.checked });
           }}
-          className="w-5 h-5 accent-violet shrink-0"
+          className="w-5 h-5 accent-gold shrink-0"
         />
       </label>
 

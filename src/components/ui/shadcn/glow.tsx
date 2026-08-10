@@ -31,7 +31,7 @@ const Glow = React.forwardRef<
         "absolute left-1/2 h-[300px] w-[60%] -translate-x-1/2 scale-[2] rounded-[50%] sm:h-[500px]",
         variant === "center" && "-translate-y-1/2",
       )}
-      style={{ background: "radial-gradient(ellipse at center, var(--violet-soft), transparent 65%)", filter: "blur(20px)" }}
+      style={{ background: "radial-gradient(ellipse at center, var(--gold-soft), transparent 65%)", filter: "blur(20px)" }}
     />
   </div>
 ));

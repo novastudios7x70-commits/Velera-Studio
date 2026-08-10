@@ -23,21 +23,21 @@ const STEPS = [
 const CONTENT_PATHS = [
   {
     icon: Music,
-    accent: "violet" as const,
+    accent: "gold" as const,
     title: "Music",
     copy: "We find the chorus, the hook, the bridge that hits — synced to the beat if you want it.",
     tilt: "-rotate-2",
   },
   {
     icon: Mic,
-    accent: "violet" as const,
+    accent: "gold" as const,
     title: "Talking / spoken",
     copy: "We transcribe and pull the 3-5 moments most likely to stop a scroll.",
     tilt: "rotate-0 sm:-translate-y-2",
   },
   {
     icon: Wand2,
-    accent: "coral" as const,
+    accent: "plum" as const,
     title: "No footage? Generate for me",
     copy: "Not a fallback — a first-class path. We build visuals that match your track or transcript before cutting.",
     tilt: "rotate-2",
@@ -60,7 +60,7 @@ function ClipMockup() {
       <div className="nova-noise" />
       <div
         className="absolute top-3 right-3 nova-mono text-[10px] px-2 py-1 rounded-full flex items-center gap-1"
-        style={{ background: "rgba(168,85,247,0.22)", color: "#d5aefc", border: "1px solid rgba(213,174,252,0.4)" }}
+        style={{ background: "rgba(201,162,39,0.22)", color: "#e8c04f", border: "1px solid rgba(232,192,79,0.4)" }}
       >
         <TrendingUp size={10} /> hook 94%
       </div>
@@ -70,7 +70,7 @@ function ClipMockup() {
             <div
               key={i}
               className="w-[3px] rounded-full"
-              style={{ height: `${h}px`, background: i % 3 === 0 ? "#e8c04f" : "#c084fc", opacity: 0.9 }}
+              style={{ height: `${h}px`, background: i % 3 === 0 ? "#e8c04f" : "#8a6b1a", opacity: 0.9 }}
             />
           ))}
         </div>
@@ -96,7 +96,7 @@ function Marquee() {
             {MARQUEE_ITEMS.map((item) => (
               <span key={item} className="flex items-center gap-6 px-6">
                 <span className="nova-display font-medium text-[14px] text-text whitespace-nowrap">{item}</span>
-                <Sparkles size={12} className="text-violet shrink-0" />
+                <Sparkles size={12} className="text-gold shrink-0" />
               </span>
             ))}
           </div>
@@ -112,7 +112,7 @@ export default function Home() {
       <HeroWithMockup
         eyebrow={
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full mb-6 nova-mono text-[12px] text-muted border border-line" style={{ background: "var(--panel)" }}>
-            <Sparkles size={12} className="text-violet" /> built for musicians &amp; faceless creators
+            <Sparkles size={12} className="text-gold" /> built for musicians &amp; faceless creators
           </div>
         }
         title={
@@ -124,7 +124,7 @@ export default function Home() {
               delayStart={0.3}
               className="inline-block"
               style={{
-                background: "linear-gradient(90deg, var(--violet), var(--coral))",
+                background: "linear-gradient(90deg, #e8c04f, var(--gold))",
                 WebkitBackgroundClip: "text",
                 WebkitTextFillColor: "transparent",
                 backgroundClip: "text",
@@ -169,9 +169,9 @@ export default function Home() {
           >
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center mb-3.5"
-              style={{ background: c.accent === "violet" ? "var(--violet-soft)" : "var(--coral-soft)" }}
+              style={{ background: c.accent === "gold" ? "var(--gold-soft)" : "var(--plum-soft)" }}
             >
-              <c.icon size={17} className={c.accent === "violet" ? "text-violet" : "text-coral"} />
+              <c.icon size={17} className={c.accent === "gold" ? "text-gold" : "text-plum"} />
             </div>
             <div className="nova-display font-medium text-[14.5px] text-text mb-1.5">{c.title}</div>
             <div className="text-[12.5px] text-muted leading-relaxed">{c.copy}</div>
@@ -194,10 +194,10 @@ export default function Home() {
         <Reveal>
           <div
             className="rounded-2xl p-5 flex items-center gap-3.5"
-            style={{ background: "linear-gradient(120deg, var(--violet-soft), var(--coral-soft))", border: "1px solid var(--line)" }}
+            style={{ background: "linear-gradient(120deg, var(--plum-soft), var(--gold-soft))", border: "1px solid var(--line)" }}
           >
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--coral-soft)" }}>
-              <Film size={16} className="text-coral" />
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "var(--plum-soft)" }}>
+              <Film size={16} className="text-plum" />
             </div>
             <div className="text-[13px] text-text leading-relaxed">
               No footage? &ldquo;Generate for me&rdquo; is a first-class option, not an afterthought —
@@ -213,7 +213,7 @@ export default function Home() {
         <Reveal>
           <div
             className="rounded-3xl px-8 py-14 text-center relative overflow-hidden"
-            style={{ background: "linear-gradient(160deg, var(--panel) 0%, #2b1640 100%)", border: "1px solid var(--line)" }}
+            style={{ background: "linear-gradient(160deg, var(--panel) 0%, #201c14 100%)", border: "1px solid var(--line)" }}
           >
             <div
               className="absolute pointer-events-none"
@@ -224,7 +224,7 @@ export default function Home() {
                 width: 420,
                 height: 420,
                 borderRadius: "50%",
-                background: "radial-gradient(circle, var(--violet-soft), transparent 70%)",
+                background: "radial-gradient(circle, var(--gold-soft), transparent 70%)",
                 filter: "blur(10px)",
               }}
             />
@@ -241,7 +241,7 @@ export default function Home() {
               finds in your next upload.
             </p>
             <div className="relative inline-block">
-              <GlowEffect colors={["#A855F7", "#D4AF37", "#E63946"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-70 rounded-xl" />
+              <GlowEffect colors={["#dbb44a", "#8a6b1a"]} mode="breathe" blur="soft" scale={0.94} duration={4} className="opacity-70 rounded-xl" />
               <Link href="/signup" className="inline-flex relative">
                 <PrimaryButton className="px-8 py-3.5 text-[15px]">
                   Start free <ArrowRight size={17} />

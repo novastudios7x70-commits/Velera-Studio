@@ -17,7 +17,7 @@ export default function OpengraphImage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(168,85,247,0.35), transparent), #0b0714",
+          background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(201,162,39,0.28), transparent), #0c0c0e",
           padding: 80,
         }}
       >
@@ -29,7 +29,7 @@ export default function OpengraphImage() {
             width: 96,
             height: 96,
             borderRadius: 22,
-            background: "linear-gradient(135deg, #A855F7, #D4AF37)",
+            background: "linear-gradient(135deg, #6E5A9E, #C9A227)",
             fontSize: 48,
             fontWeight: 700,
             color: "#ffffff",
