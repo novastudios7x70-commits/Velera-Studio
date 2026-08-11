@@ -27,7 +27,7 @@ export default function LoginPage() {
         <Field icon={Mail} type="email" name="email" placeholder="you@email.com" required autoComplete="email" />
         <Field icon={Lock} type="password" name="password" placeholder="Password" required autoComplete="current-password" />
 
-        <Link href="/forgot-password" className="text-[12.5px] text-gold -mt-1 self-end">
+        <Link href="/forgot-password" className="text-[12.5px] text-text underline underline-offset-2 -mt-1 self-end">
           Forgot password?
         </Link>
 
@@ -40,7 +40,7 @@ export default function LoginPage() {
 
       <p className="text-center text-[12.5px] text-muted">
         New here?{" "}
-        <Link href="/signup" className="text-gold">
+        <Link href="/signup" className="text-text underline underline-offset-2">
           Start a free trial
         </Link>
       </p>

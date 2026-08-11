@@ -1,8 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// No social share image existed at all — a pasted link would show a bare
-// title with no card. Generated in code from the same tokens as the rest of
-// the app rather than a hand-exported static asset.
+// Generated in code from the same tokens as the rest of the app rather
+// than a hand-exported static asset. Monochrome, matching Velora's
+// "color in motion, not at rest" system — no ambient gradient wash.
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -17,7 +17,7 @@ export default function OpengraphImage() {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(201,162,39,0.28), transparent), #0c0c0e",
+          background: "#0c0c0e",
           padding: 80,
         }}
       >
@@ -28,11 +28,11 @@ export default function OpengraphImage() {
             justifyContent: "center",
             width: 96,
             height: 96,
-            borderRadius: 22,
-            background: "linear-gradient(135deg, #6E5A9E, #C9A227)",
+            borderRadius: 18,
+            background: "#f0efec",
             fontSize: 48,
             fontWeight: 700,
-            color: "#ffffff",
+            color: "#0a0a0b",
             marginBottom: 40,
           }}
         >
@@ -40,26 +40,26 @@ export default function OpengraphImage() {
         </div>
         <div
           style={{
-            fontSize: 64,
+            fontSize: 60,
             fontWeight: 700,
-            color: "#F5F1FA",
+            color: "#f0efec",
             letterSpacing: "-0.02em",
             textAlign: "center",
             display: "flex",
           }}
         >
-          One upload. A viral empire.
+          Turn your videos into something worth sharing.
         </div>
         <div
           style={{
             fontSize: 28,
-            color: "#9C8FAE",
+            color: "#8c8c90",
             marginTop: 20,
             textAlign: "center",
             display: "flex",
           }}
         >
-          Platform-ready clips for TikTok, Shorts, Reels, Facebook &amp; Pinterest
+          Velora finds the moments that matter — you direct the final result.
         </div>
       </div>
     ),

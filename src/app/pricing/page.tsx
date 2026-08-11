@@ -5,7 +5,6 @@ import { PLANS } from "@/lib/design-tokens";
 import { CheckoutButton } from "@/components/BillingButtons";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 
 export default async function PricingPage() {
   const supabase = await createClient();
@@ -32,11 +31,11 @@ export default async function PricingPage() {
           return (
             <div
               key={p.id}
-              className="nova-card rounded-2xl p-6 flex flex-col relative"
-              style={{ borderColor: p.popular ? "var(--gold)" : "var(--line)", borderWidth: p.popular ? 1.5 : 1 }}
+              className="nova-card rounded-lg p-6 flex flex-col relative"
+              style={{ borderColor: p.popular ? "rgba(255,255,255,0.28)" : "var(--line)", borderWidth: p.popular ? 1.5 : 1 }}
             >
               {p.popular && (
-                <div className="nova-mono absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] bg-gold text-white">
+                <div className="nova-mono absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] bg-text text-ink">
                   most popular
                 </div>
               )}
@@ -55,7 +54,7 @@ export default async function PricingPage() {
               <div className="flex flex-col gap-2.5 mb-6 flex-1">
                 {p.features.map((f) => (
                   <div key={f} className="flex items-start gap-2">
-                    <Check size={14} className="text-gold mt-0.5 shrink-0" />
+                    <Check size={14} className="text-text mt-0.5 shrink-0" />
                     <span className="text-[13px] text-text">{f}</span>
                   </div>
                 ))}
@@ -65,32 +64,20 @@ export default async function PricingPage() {
                   Current plan
                 </div>
               ) : p.price ? (
-                <div className="relative">
-                  {p.popular && (
-                    <GlowEffect
-                      colors={["#dbb44a", "#8a6b1a"]}
-                      mode="breathe"
-                      blur="soft"
-                      scale={0.94}
-                      duration={4}
-                      className="opacity-60 rounded-[10px]"
-                    />
-                  )}
-                  <CheckoutButton
-                    plan={p.id as "creator" | "studio"}
-                    // Logged-out clicks route to signup (the actual 3-clip,
-                    // no-card trial), so "free trial" is accurate there — but
-                    // for an already-signed-up user this button goes straight
-                    // to a paid Stripe checkout with no trial period, so
-                    // calling it a "free trial" would be misleading.
-                    label={user ? `Upgrade to ${p.name}` : "Start free trial"}
-                    loggedIn={!!user}
-                  />
-                </div>
+                <CheckoutButton
+                  plan={p.id as "creator" | "studio"}
+                  // Logged-out clicks route to signup (the actual 3-clip,
+                  // no-card trial), so "free trial" is accurate there — but
+                  // for an already-signed-up user this button goes straight
+                  // to a paid Stripe checkout with no trial period, so
+                  // calling it a "free trial" would be misleading.
+                  label={user ? `Upgrade to ${p.name}` : "Start free trial"}
+                  loggedIn={!!user}
+                />
               ) : (
                 <Link
                   href="/contact"
-                  className="nova-btn-primary nova-display font-semibold w-full py-2.5 rounded-[10px] text-center text-white text-[13.5px]"
+                  className="nova-btn-primary nova-display font-semibold w-full py-2.5 rounded-[10px] text-center text-[13.5px]"
                 >
                   Contact sales
                 </Link>

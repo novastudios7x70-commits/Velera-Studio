@@ -5,20 +5,20 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "nova-display inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40",
+  "nova-display inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg font-semibold ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-40",
   {
     variants: {
       variant: {
-        default: "nova-btn-primary text-white",
+        default: "nova-btn-primary",
         destructive: "bg-destructive text-destructive-foreground hover:bg-destructive/90",
-        outline: "border border-line bg-transparent text-text hover:border-gold/50",
+        outline: "border border-line bg-transparent text-text hover:border-white/20 hover:bg-white/[0.03]",
         secondary: "bg-secondary text-secondary-foreground border border-line",
         ghost: "text-text hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {
         default: "h-11 px-6 py-2.5 text-[14.5px]",
-        sm: "h-9 rounded-lg px-3.5 text-[13px]",
+        sm: "h-9 rounded-md px-3.5 text-[13px]",
         lg: "h-[52px] px-7 text-[15px]",
         icon: "h-10 w-10",
       },

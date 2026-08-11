@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, AlertTriangle } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { StepPill } from "@/components/ui/StepPill";
 import { GhostButton } from "@/components/ui/Button";
+import { TransformationIndicator } from "@/components/ui/TransformationIndicator";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import { createClient } from "@/lib/supabase/client";
 import type { AudioSource, ContentType, Job, JobStatus, VisualSource } from "@/lib/database.types";
 
@@ -17,16 +17,16 @@ type JobWithUpload = Job & {
 function stepsFor(contentType: ContentType, visualSource: VisualSource, audioSource: AudioSource): { status: JobStatus; label: string }[] {
   const steps: { status: JobStatus; label: string }[] = [];
   if (audioSource === "tts") {
-    steps.push({ status: "generating_voiceover", label: "Generating voiceover" });
+    steps.push({ status: "generating_voiceover", label: "Generating your voiceover" });
   }
-  steps.push({ status: "analyzing", label: contentType === "spoken" ? "Transcribing audio" : "Analyzing energy & mood" });
+  steps.push({ status: "analyzing", label: contentType === "spoken" ? "Understanding your video" : "Reading the energy of your track" });
   if (visualSource === "generate") {
     steps.push({ status: "generating_visuals", label: "Generating matching visuals" });
   }
   steps.push(
-    { status: "selecting", label: "Finding hook-worthy moments" },
-    { status: "cutting", label: "Cutting clips" },
-    { status: "captioning", label: "Styling captions" },
+    { status: "selecting", label: "Finding the moments worth sharing" },
+    { status: "cutting", label: "Preparing your clips" },
+    { status: "captioning", label: "Adding captions" },
   );
   return steps;
 }
@@ -34,6 +34,16 @@ function stepsFor(contentType: ContentType, visualSource: VisualSource, audioSou
 const STATUS_ORDER: JobStatus[] = [
   "queued", "generating_voiceover", "analyzing", "generating_visuals", "selecting", "cutting", "captioning", "done",
 ];
+
+const HEADLINE_FOR_STATUS: Partial<Record<JobStatus, string>> = {
+  queued: "Getting started",
+  generating_voiceover: "Understanding your video",
+  analyzing: "Understanding your video",
+  generating_visuals: "Finding important moments",
+  selecting: "Finding important moments",
+  cutting: "Preparing your clips",
+  captioning: "Preparing your clips",
+};
 
 export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
   const router = useRouter();
@@ -80,7 +90,7 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
   if (job.status === "failed") {
     return (
       <div className="nova-fade-in max-w-md mx-auto px-6 py-24 text-center w-full">
-        <div className="mx-auto mb-7 w-16 h-16 rounded-2xl flex items-center justify-center bg-ruby/10">
+        <div className="mx-auto mb-7 w-16 h-16 rounded-xl flex items-center justify-center bg-ruby/10">
           <AlertTriangle size={26} className="text-ruby" />
         </div>
         <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
@@ -102,21 +112,16 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
 
   return (
     <div className="nova-fade-in max-w-md mx-auto px-6 py-24 text-center w-full">
-      <div className="relative mx-auto mb-7 w-16 h-16">
-        <GlowEffect colors={["#dbb44a", "#8a6b1a"]} mode="breathe" blur="strong" scale={1.4} duration={3.5} className="opacity-40 rounded-2xl" />
-        <div className="relative w-16 h-16 rounded-2xl flex items-center justify-center bg-gold-soft">
-          <Loader2 size={26} className="text-gold animate-spin" />
-        </div>
-      </div>
-      <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
-        Building your clips
+      <TransformationIndicator size={48} className="mx-auto mb-7" />
+      <TextEffect key={job.status} as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[20px] text-text">
+        {HEADLINE_FOR_STATUS[job.status] ?? "Preparing your clips"}
       </TextEffect>
       <p className="mb-8 text-[13.5px] text-muted">{job.upload.file_name}</p>
 
-      <div className="rounded-full h-1.5 mb-8 overflow-hidden bg-line">
+      <div className="rounded-full h-1 mb-8 overflow-hidden bg-line">
         <div
           className="h-full rounded-full transition-[width] duration-500 ease-out"
-          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #dbb44a, var(--gold))" }}
+          style={{ width: `${pct}%`, background: "var(--gold)" }}
         />
       </div>
 

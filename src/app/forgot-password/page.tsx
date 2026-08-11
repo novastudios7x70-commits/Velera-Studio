@@ -16,14 +16,14 @@ export default function ForgotPasswordPage() {
   if (state.info) {
     return (
       <div className="nova-fade-in max-w-sm mx-auto px-6 py-20 w-full text-center">
-        <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-gold-soft">
-          <MailCheck size={22} className="text-gold" />
+        <div className="mx-auto mb-5 w-14 h-14 rounded-xl flex items-center justify-center bg-elevated border border-line">
+          <MailCheck size={22} className="text-text" />
         </div>
         <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-2 text-[20px] text-text">
           Check your email
         </TextEffect>
         <p className="text-[13.5px] text-muted mb-6">{state.info}</p>
-        <Link href="/login" className="text-[13px] text-gold">
+        <Link href="/login" className="text-[13px] text-text underline underline-offset-4">
           Back to login
         </Link>
       </div>

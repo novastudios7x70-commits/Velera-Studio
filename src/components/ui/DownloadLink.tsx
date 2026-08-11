@@ -18,7 +18,7 @@ export function DownloadLink({ clipId, url, label }: { clipId: string; url: stri
       target="_blank"
       rel="noopener noreferrer"
       onClick={handleClick}
-      className="flex items-center justify-center gap-1.5 rounded-lg py-2 border border-line text-text text-[12px] hover:border-gold/50 transition-colors"
+      className="flex items-center justify-center gap-1.5 rounded-lg py-2 border border-line text-text text-[12px] hover:border-white/25 transition-colors"
     >
       <Download size={12} /> {label}
     </a>

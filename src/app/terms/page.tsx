@@ -41,7 +41,7 @@ export default function TermsPage() {
           Velora Studio responds to valid takedown notices under the Digital Millennium Copyright Act. If
           you believe content processed or hosted through Velora Studio infringes your copyright, send a
           notice to our designated agent at{" "}
-          <a className="text-gold" href={`mailto:${COMPANY.dmcaEmail}`}>{COMPANY.dmcaEmail}</a> including:
+          <a className="text-text underline underline-offset-2" href={`mailto:${COMPANY.dmcaEmail}`}>{COMPANY.dmcaEmail}</a> including:
         </p>
         <ul className="list-disc pl-5 flex flex-col gap-1.5">
           <li>A description of the copyrighted work you claim is infringed.</li>
@@ -96,7 +96,7 @@ export default function TermsPage() {
       <Section title="Contact">
         <p>
           {COMPANY.legalName}, {COMPANY.physicalAddress} —{" "}
-          <a className="text-gold" href={`mailto:${COMPANY.supportEmail}`}>{COMPANY.supportEmail}</a>.
+          <a className="text-text underline underline-offset-2" href={`mailto:${COMPANY.supportEmail}`}>{COMPANY.supportEmail}</a>.
         </p>
       </Section>
     </div>

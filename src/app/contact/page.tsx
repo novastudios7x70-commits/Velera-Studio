@@ -73,8 +73,8 @@ export default function ContactPage() {
         </>
       ) : (
         <div className="text-center py-10">
-          <div className="mx-auto mb-5 w-14 h-14 rounded-2xl flex items-center justify-center bg-gold-soft">
-            <Check size={22} className="text-gold" />
+          <div className="mx-auto mb-5 w-14 h-14 rounded-xl flex items-center justify-center bg-elevated border border-line">
+            <Check size={22} className="text-text" />
           </div>
           <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-2 text-[20px] text-text">
             Message sent

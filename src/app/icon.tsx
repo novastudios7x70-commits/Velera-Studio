@@ -1,10 +1,8 @@
 import { ImageResponse } from "next/og";
 
-// The browser tab was still showing Next.js's stock default icon instead of
-// the app's own gradient "V" mark (see Logo.tsx) — one of the concrete
-// "looks like boilerplate" tells. Generated in code so it matches the exact
-// gradient/weight of the header logo instead of a hand-exported asset that
-// could drift from it.
+// Generated in code so it matches the header logo mark (see Logo.tsx)
+// exactly instead of a hand-exported asset that could drift from it.
+// Monochrome, matching Velora's "color in motion, not at rest" system.
 export const size = { width: 32, height: 32 };
 export const contentType = "image/png";
 
@@ -18,11 +16,11 @@ export default function Icon() {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(135deg, #6E5A9E, #C9A227)",
+          background: "#f0efec",
           borderRadius: 7,
           fontSize: 20,
           fontWeight: 700,
-          color: "#ffffff",
+          color: "#0a0a0b",
         }}
       >
         V

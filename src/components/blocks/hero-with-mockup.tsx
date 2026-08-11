@@ -1,17 +1,13 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/shadcn/button";
-import { Mockup } from "@/components/ui/shadcn/mockup";
-import { Glow } from "@/components/ui/shadcn/glow";
-import { OrganicBlobs } from "@/components/ui/OrganicBlobs";
-import { HeroChrome3D } from "@/components/ui/HeroChrome3D";
 
 /**
- * Adapted from 21st.dev's "Hero with Mockup" (serafimcloud/hero-with-mockup).
- * Differs from the original registry version in two ways: takes a `mockup`
- * node instead of a static `mockupImage` (this product has no marketing
- * screenshot to point at), and skins Button/Glow through this app's
- * existing token bridge instead of shadcn's default palette.
+ * Adapted from 21st.dev's "Hero with Mockup" (serafimcloud/hero-with-mockup),
+ * stripped of the original's ambient glow wash — Velora is monochrome at
+ * rest, so the hero has no decorative background treatment. Whatever's
+ * passed as `mockup` (the actual product visual) is the only thing pulling
+ * focus in this half of the layout.
  */
 interface HeroWithMockupProps {
   eyebrow?: ReactNode;
@@ -62,18 +58,10 @@ export function HeroWithMockup({
             {trustRow}
           </div>
 
-          <div className="relative mx-auto lg:mx-0 w-full max-w-[280px] nova-fade-in" style={{ animationDelay: "220ms" }}>
-            <HeroChrome3D className="absolute -inset-x-32 -inset-y-24 pointer-events-none -z-10" />
-            <Mockup type="mobile" className="mx-auto">
-              {mockup}
-            </Mockup>
+          <div className="relative mx-auto lg:mx-0 w-full nova-fade-in" style={{ animationDelay: "220ms" }}>
+            {mockup}
           </div>
         </div>
-      </div>
-
-      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
-        <OrganicBlobs />
-        <Glow variant="above" />
       </div>
     </section>
   );

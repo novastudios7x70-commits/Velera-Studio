@@ -31,7 +31,7 @@ export default async function SettingsPage() {
       <div className="mt-8 pt-8 border-t border-line">
         <div className="text-[12px] text-muted mb-2">Billing</div>
         {profile.plan === "trial" ? (
-          <Link href="/pricing" className="text-[13.5px] text-gold">
+          <Link href="/pricing" className="text-[13.5px] text-text underline underline-offset-4">
             Upgrade to a paid plan
           </Link>
         ) : (

@@ -81,34 +81,37 @@ export default async function DashboardPage() {
       <div className="flex items-center justify-between mb-8 flex-wrap gap-4">
         <div>
           <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[22px] text-text">
-            Your projects
+            What are you creating?
           </TextEffect>
-          <p className="text-[13.5px] text-muted">{projects.length} upload{projects.length === 1 ? "" : "s"} processed</p>
+          <p className="text-[13.5px] text-muted">Find the moments worth sharing. Velora handles the heavy lifting.</p>
         </div>
         <div className="flex items-center gap-2">
           {streak > 0 && (
-            <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border border-line nova-mono text-[12.5px] text-text">
-              <Flame size={14} className="text-gold" />
+            <div className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-lg border border-line nova-mono text-[12.5px] text-text">
+              <Flame size={14} className="text-text" />
               {streak} day{streak === 1 ? "" : "s"}
             </div>
           )}
-          <Link href="/settings">
-            <GhostButton className="px-3.5 py-2.5 text-muted text-[13.5px]">Brand kit</GhostButton>
-          </Link>
-          <Link href="/pricing">
-            <GhostButton className="nova-mono px-3.5 py-2.5 text-[12.5px]">{planLabel} plan</GhostButton>
-          </Link>
           <Link href="/upload">
             <PrimaryButton className="px-4 py-2.5 text-[13.5px]">
-              <Plus size={15} /> New upload
+              Upload video <Plus size={15} />
             </PrimaryButton>
           </Link>
         </div>
       </div>
 
+      <div className="flex items-center gap-4 mb-8 text-[12.5px]">
+        <Link href="/settings" className="text-muted hover:text-text transition-colors">
+          Brand kit
+        </Link>
+        <Link href="/pricing" className="text-muted hover:text-text transition-colors">
+          {planLabel} plan
+        </Link>
+      </div>
+
       {profile && (
         <Reveal>
-          <div className="nova-card rounded-2xl px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-3">
+          <div className="nova-card rounded-lg px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-3">
             <div className="text-[13px] text-text">
               {profile.plan === "agency" || profile.plan === "trial" ? (
                 <>
@@ -127,7 +130,7 @@ export default async function DashboardPage() {
               )}
             </div>
             {profile.plan === "trial" && (
-              <Link href="/pricing" className="text-[12.5px] text-gold">
+              <Link href="/pricing" className="text-[12.5px] text-text underline underline-offset-4">
                 Upgrade for more
               </Link>
             )}
@@ -137,7 +140,7 @@ export default async function DashboardPage() {
 
       {projects.length === 0 ? (
         <Reveal>
-          <div className="nova-card rounded-2xl px-6 py-14 text-center">
+          <div className="nova-card rounded-lg px-6 py-14 text-center">
             <FolderOpen size={26} className="text-muted mx-auto mb-3" />
             <div className="nova-display font-medium text-[15px] text-text mb-1">No uploads yet</div>
             <div className="text-[13px] text-muted mb-5">Your first 3 clips are on us.</div>
@@ -156,17 +159,17 @@ export default async function DashboardPage() {
               <Link
                 key={p.id}
                 href={p.status === "done" ? `/jobs/${p.id}/results` : `/jobs/${p.id}`}
-                className="nova-card nova-card-select rounded-2xl px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
+                className="nova-card nova-card-select rounded-lg px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden shrink-0 relative bg-gold-soft flex items-center justify-center">
+                  <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 relative bg-elevated border border-line flex items-center justify-center">
                     {thumb ? (
                       // eslint-disable-next-line @next/next/no-img-element -- remote Supabase Storage CDN thumbnail, no build-time optimization needed
                       <img src={thumb} alt="" className="absolute inset-0 w-full h-full object-cover" />
                     ) : p.upload?.content_type === "music" ? (
-                      <Music size={16} className="text-gold" />
+                      <Music size={16} className="text-text" />
                     ) : (
-                      <Mic size={16} className="text-gold" />
+                      <Mic size={16} className="text-text" />
                     )}
                   </div>
                   <div>
@@ -174,8 +177,8 @@ export default async function DashboardPage() {
                     <div className="flex items-center gap-1.5 mt-0.5 text-[12px] text-muted">
                       <Clock size={11} /> {timeAgo(p.created_at)}
                       {p.upload?.visual_source === "generate" && (
-                        <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-gold-soft text-gold flex items-center gap-1">
-                          <Wand2 size={9} /> generated visuals
+                        <span className="nova-mono ml-1 px-1.5 py-0.5 rounded-full text-[10px] bg-elevated text-muted border border-line flex items-center gap-1">
+                          <Wand2 size={9} /> generated
                         </span>
                       )}
                     </div>

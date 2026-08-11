@@ -32,7 +32,7 @@ export default function ResetPasswordPage() {
 
       {state.error?.includes("expired") && (
         <p className="text-center text-[12.5px] text-muted mt-5">
-          <Link href="/forgot-password" className="text-gold">
+          <Link href="/forgot-password" className="text-text underline underline-offset-4">
             Request a new link
           </Link>
         </p>

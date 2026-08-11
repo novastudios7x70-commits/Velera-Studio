@@ -1,33 +1,34 @@
 @import "tailwindcss";
 
 :root {
-  /* Graphite/charcoal studio foundation — deliberately not the
-     purple-tinted void this app used to run on. Three surface levels
+  /* Graphite/charcoal studio foundation. Three surface levels
      (void → panel → elevated) instead of one flat dark background. */
   --ink: #0a0a0b;
   --void: #0c0c0e;
-  --panel: #18181b;
-  --elevated: #1f2023;
-  --line: rgba(255, 255, 255, 0.07);
-  /* Gold is the one dominant brand accent — cinematic/premium, not "AI
-     purple." Plum is the old primary violet, deepened and demoted to a
-     rare secondary (logo gradient, the odd highlight) rather than being
-     stamped on every button and badge. Ruby is destructive/error only. */
+  --panel: #17171a;
+  --elevated: #1f1f23;
+  --line: rgba(255, 255, 255, 0.08);
+  --text: #f0efec;
+  --muted: #8c8c90;
+
+  /* Monochrome at rest, color in motion. Gold is reserved for
+     communicating active transformation (processing, generation
+     progress) — it is NOT a persistent brand color on static buttons,
+     links, or badges. Nothing in :root below wires it into --primary
+     or --ring, on purpose: default UI stays neutral. The exact hue
+     (gold vs. violet) is not finalized; treat this as provisional.
+     Ruby is a separate, purely semantic destructive/error color. */
   --gold: #c9a227;
   --gold-soft: rgba(201, 162, 39, 0.14);
-  --plum: #6e5a9e;
-  --plum-soft: rgba(110, 90, 158, 0.14);
   --ruby: #e63946;
   --ruby-soft: rgba(230, 57, 70, 0.14);
-  --text: #f2f0ec;
-  --muted: #8f8d92;
 
   /*
    * shadcn/ui semantic token bridge — maps shadcn's expected variable
-   * names onto this app's existing palette above, so components pulled
-   * from 21st.dev render in Velora's colors instead of shadcn defaults,
-   * with no per-component find-replace needed. Keep in sync with the
-   * tokens above rather than hardcoding a second palette here.
+   * names onto this app's palette above, so components pulled from
+   * 21st.dev render in Velora's colors instead of shadcn defaults.
+   * Primary/ring/accent point at the neutral text tone, not the
+   * transformation accent — buttons and active states stay monochrome.
    */
   --background: var(--void);
   --foreground: var(--text);
@@ -35,19 +36,19 @@
   --card-foreground: var(--text);
   --popover: var(--elevated);
   --popover-foreground: var(--text);
-  --primary: var(--gold);
-  --primary-foreground: #0c0c0e;
+  --primary: var(--text);
+  --primary-foreground: var(--ink);
   --secondary: var(--panel);
   --secondary-foreground: var(--text);
   --muted-foreground: var(--muted);
-  --accent: var(--gold-soft);
+  --accent: var(--elevated);
   --accent-foreground: var(--text);
   --destructive: var(--ruby);
   --destructive-foreground: #ffffff;
   --border: var(--line);
   --input: var(--line);
-  --ring: var(--gold);
-  --radius: 0.625rem;
+  --ring: var(--muted);
+  --radius: 0.5rem;
 }
 
 @theme inline {
@@ -56,8 +57,6 @@
   --color-panel: var(--panel);
   --color-elevated: var(--elevated);
   --color-line: var(--line);
-  --color-plum: var(--plum);
-  --color-plum-soft: var(--plum-soft);
   --color-gold: var(--gold);
   --color-gold-soft: var(--gold-soft);
   --color-ruby: var(--ruby);
@@ -111,12 +110,6 @@ body {
   font-family: var(--font-jetbrains-mono), monospace;
 }
 
-.nova-glow {
-  box-shadow:
-    0 0 0 1px var(--line),
-    0 20px 60px -20px rgba(201, 162, 39, 0.3);
-}
-
 .nova-fade-in {
   animation: novaFadeIn 0.5s ease both;
 }
@@ -130,22 +123,6 @@ body {
     opacity: 1;
     transform: translateY(0);
   }
-}
-
-@keyframes novaPulse {
-  0%,
-  100% {
-    opacity: 0.35;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.55;
-    transform: scale(1.04);
-  }
-}
-
-.nova-pulse-glow {
-  animation: novaPulse 6s ease-in-out infinite;
 }
 
 @keyframes novaMarquee {
@@ -165,81 +142,69 @@ body {
   animation-play-state: paused;
 }
 
-@keyframes novaBlobA {
-  0%, 100% { border-radius: 42% 58% 65% 35% / 45% 40% 60% 55%; transform: translate(0, 0) scale(1); }
-  33% { border-radius: 60% 40% 35% 65% / 55% 65% 35% 45%; transform: translate(3%, 4%) scale(1.06); }
-  66% { border-radius: 35% 65% 55% 45% / 35% 45% 55% 65%; transform: translate(-2%, 2%) scale(0.97); }
+/* Velora's transformation language — geometric (precise, structured) at
+   rest, fluid (alive) while something is actually processing. The
+   accent color is scoped to these two animations only; it never sits
+   static anywhere else in the UI. */
+@keyframes novaTransformShape {
+  0%, 100% { border-radius: 18%; transform: rotate(0deg) scale(1); }
+  50% { border-radius: 50%; transform: rotate(90deg) scale(0.88); }
 }
 
-@keyframes novaBlobB {
-  0%, 100% { border-radius: 55% 45% 40% 60% / 40% 55% 45% 60%; transform: translate(0, 0) scale(1); }
-  50% { border-radius: 38% 62% 60% 40% / 60% 40% 60% 40%; transform: translate(-4%, 5%) scale(1.08); }
+.nova-transform-shape {
+  animation: novaTransformShape 2.2s cubic-bezier(0.65, 0, 0.35, 1) infinite;
 }
-
-@keyframes novaBlobC {
-  0%, 100% { border-radius: 48% 52% 55% 45% / 55% 45% 55% 45%; transform: translate(0, 0) scale(1); }
-  40% { border-radius: 65% 35% 45% 55% / 40% 60% 40% 60%; transform: translate(4%, -3%) scale(1.05); }
-  75% { border-radius: 40% 60% 65% 35% / 60% 35% 65% 40%; transform: translate(-3%, -2%) scale(0.96); }
-}
-
-.nova-blob-a { animation: novaBlobA 18s ease-in-out infinite; }
-.nova-blob-b { animation: novaBlobB 22s ease-in-out infinite; }
-.nova-blob-c { animation: novaBlobC 26s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
   .nova-marquee-track {
     animation: none;
   }
-  .nova-fade-in,
-  .nova-pulse-glow {
+  .nova-fade-in {
     animation: none;
   }
-  .nova-blob-a,
-  .nova-blob-b,
-  .nova-blob-c {
+  .nova-transform-shape {
     animation: none;
+    border-radius: 30%;
   }
 }
 
+/* Confident and compact, not a giant glowing pill — off-white on
+   graphite, the highest-contrast neutral available, so the one
+   button per screen that matters actually reads as primary. */
 .nova-btn-primary {
-  background: linear-gradient(135deg, #dbb44a, var(--gold));
-  color: #0c0c0e;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  background: var(--text);
+  color: var(--ink);
+  transition: transform 0.15s ease, opacity 0.15s ease;
 }
 
 .nova-btn-primary:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 12px 30px -10px rgba(201, 162, 39, 0.4);
+  opacity: 0.88;
+}
+
+.nova-btn-primary:active {
+  transform: scale(0.98);
 }
 
 .nova-btn-primary:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
   transform: none;
-  box-shadow: none;
 }
 
 .nova-card {
   background: var(--panel);
   border: 1px solid var(--line);
-  box-shadow:
-    0 1px 2px rgba(0, 0, 0, 0.2),
-    0 8px 24px -12px rgba(0, 0, 0, 0.4);
 }
 
 .nova-card-select {
   transition:
     border-color 0.15s ease,
-    background 0.15s ease,
-    transform 0.15s ease,
-    box-shadow 0.15s ease;
+    background 0.15s ease;
   cursor: pointer;
 }
 
 .nova-card-select:hover {
-  border-color: rgba(201, 162, 39, 0.4);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 16px -6px rgba(201, 162, 39, 0.18);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 
 .nova-noise {

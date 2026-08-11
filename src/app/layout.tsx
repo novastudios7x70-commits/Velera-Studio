@@ -25,9 +25,9 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"),
-  title: "Velora Studio — One upload. A viral empire.",
+  title: "Velora Studio — Turn your videos into something worth sharing.",
   description:
-    "Velora Studio turns one upload into platform-ready short-form clips for TikTok, YouTube Shorts, Instagram Reels, Facebook, and Pinterest.",
+    "Velora finds the moments that matter, transforms them into polished content, and lets you direct the final result.",
 };
 
 export default function RootLayout({
@@ -40,13 +40,7 @@ export default function RootLayout({
       lang="en"
       className={`${outfit.variable} ${plusJakarta.variable} ${jetbrainsMono.variable} h-full antialiased`}
     >
-      <body
-        className="nova-root nova-scrollbar min-h-full flex flex-col relative"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 50% at 50% -10%, rgba(201,162,39,0.1), transparent), #0c0c0e",
-        }}
-      >
+      <body className="nova-root nova-scrollbar min-h-full flex flex-col relative" style={{ background: "var(--void)" }}>
         <ToastProvider>
           <div className="relative z-10 flex-1 flex flex-col">
             <SiteHeader />

@@ -4,15 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Music, Mic, Film, Wand2, Upload as UploadIcon, Sparkles, Loader2, FileText,
+  ArrowLeft, Music, Mic, Film, Wand2, Upload as UploadIcon, Loader2, FileText,
 } from "lucide-react";
 import { StepPill } from "@/components/ui/StepPill";
-import { PrimaryButton } from "@/components/ui/Button";
+import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
-import { GlowEffect } from "@/components/ui/motion-primitives/glow-effect";
 import type { AudioSource, ContentType, VisualSource } from "@/lib/database.types";
 
 const GENERATE_VISUALS_ENABLED = process.env.NEXT_PUBLIC_GENERATE_VISUALS_ENABLED === "true";
@@ -68,15 +67,24 @@ export default function UploadPage() {
       .finally(() => setVoicesLoading(false));
   }, [audioSource, voices.length, voicesLoading]);
 
-  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const processFile = (f: File) => {
     if (f.size > MAX_FILE_BYTES) {
       setError("File is too large — max 500MB.");
       return;
     }
     setError(null);
     setFile(f);
+  };
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) processFile(f);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) processFile(f);
   };
 
   const handleSubmit = async () => {
@@ -172,13 +180,13 @@ export default function UploadPage() {
           </TextEffect>
           <p className="mb-6 text-muted text-[14px]">This decides how Velora Studio reads your upload.</p>
           <AnimatedGroup preset="blur-slide" className="grid grid-cols-2 gap-3">
-            <button onClick={() => setContentType("music")} className="nova-card nova-card-select rounded-2xl p-5 text-left">
-              <Music size={20} className="text-gold mb-3" />
+            <button onClick={() => setContentType("music")} className="nova-card nova-card-select rounded-lg p-5 text-left">
+              <Music size={20} className="text-text mb-3" />
               <div className="nova-display font-medium text-[15px] text-text">Music</div>
               <div className="text-[12.5px] text-muted mt-0.5">A song or track</div>
             </button>
-            <button onClick={() => setContentType("spoken")} className="nova-card nova-card-select rounded-2xl p-5 text-left">
-              <Mic size={20} className="text-gold mb-3" />
+            <button onClick={() => setContentType("spoken")} className="nova-card nova-card-select rounded-lg p-5 text-left">
+              <Mic size={20} className="text-text mb-3" />
               <div className="nova-display font-medium text-[15px] text-text">Talking / spoken</div>
               <div className="text-[12.5px] text-muted mt-0.5">Voiceover, podcast, script</div>
             </button>
@@ -193,17 +201,17 @@ export default function UploadPage() {
           </TextEffect>
           <p className="mb-6 text-muted text-[14px]">No camera, no footage, no problem — Velora Studio can build visuals for you.</p>
           <AnimatedGroup preset="blur-slide" className="grid grid-cols-2 gap-3">
-            <button onClick={() => setVisualSource("has")} className="nova-card nova-card-select rounded-2xl p-5 text-left">
-              <Film size={20} className="text-gold mb-3" />
+            <button onClick={() => setVisualSource("has")} className="nova-card nova-card-select rounded-lg p-5 text-left">
+              <Film size={20} className="text-text mb-3" />
               <div className="nova-display font-medium text-[15px] text-text">I have footage</div>
               <div className="text-[12.5px] text-muted mt-0.5">Edit and reformat what I upload</div>
             </button>
             <button
               onClick={() => GENERATE_VISUALS_ENABLED && setVisualSource("generate")}
               disabled={!GENERATE_VISUALS_ENABLED}
-              className="nova-card nova-card-select rounded-2xl p-5 text-left disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
+              className="nova-card nova-card-select rounded-lg p-5 text-left disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <Wand2 size={20} className="text-gold mb-3" />
+              <Wand2 size={20} className="text-text mb-3" />
               <div className="nova-display font-medium text-[15px] text-text">Generate for me</div>
               <div className="text-[12.5px] text-muted mt-0.5">
                 {GENERATE_VISUALS_ENABLED ? "Build visuals that match the mood" : "Temporarily unavailable"}
@@ -234,8 +242,8 @@ export default function UploadPage() {
                   onClick={() => setAudioSource(s)}
                   className="rounded-lg py-2 text-[13px] nova-display font-medium transition-colors"
                   style={{
-                    background: audioSource === s ? "var(--gold-soft)" : "transparent",
-                    color: audioSource === s ? "var(--gold)" : "var(--muted)",
+                    background: audioSource === s ? "var(--elevated)" : "transparent",
+                    color: audioSource === s ? "var(--text)" : "var(--muted)",
                   }}
                 >
                   {s === "upload" ? "Upload a recording" : "Write a script"}
@@ -254,7 +262,7 @@ export default function UploadPage() {
                 type="checkbox"
                 checked={beatSync}
                 onChange={(e) => setBeatSync(e.target.checked)}
-                className="w-5 h-5 accent-gold shrink-0"
+                className="w-5 h-5 accent-text shrink-0"
               />
             </label>
           )}
@@ -299,17 +307,23 @@ export default function UploadPage() {
             </div>
           ) : (
             <div
-              onClick={() => fileRef.current?.click()}
-              className="rounded-2xl flex flex-col items-center justify-center text-center cursor-pointer mb-4 py-9 px-5"
-              style={{
-                border: `1.5px dashed ${file ? "var(--gold)" : "var(--line)"}`,
-                background: file ? "var(--gold-soft)" : "transparent",
-              }}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={handleDrop}
+              className="rounded-lg border border-line px-4 py-3.5 mb-4 flex items-center justify-between gap-3"
             >
               <input ref={fileRef} type="file" className="hidden" accept={ACCEPTED_TYPES.join(",")} onChange={handleFile} />
-              <UploadIcon size={22} className={file ? "text-gold" : "text-muted"} />
-              <div className="text-[14px] text-text mt-2">{file?.name ?? "Click to choose a file"}</div>
-              <div className="text-[12px] text-muted mt-1">{file ? "Ready to process" : "MP4, MOV, MP3, or WAV — up to 500MB"}</div>
+              <div className="flex items-center gap-3 min-w-0">
+                <UploadIcon size={16} className="text-muted shrink-0" />
+                <div className="min-w-0">
+                  <div className="text-[13.5px] text-text truncate">{file?.name ?? "No file chosen"}</div>
+                  <div className="text-[11.5px] text-muted mt-0.5">
+                    {file ? "Ready to process" : "MP4, MOV, MP3, or WAV — up to 500MB, or drag one here"}
+                  </div>
+                </div>
+              </div>
+              <GhostButton type="button" onClick={() => fileRef.current?.click()} className="px-3.5 py-2 text-[12.5px] shrink-0">
+                {file ? "Change" : "Choose file"}
+              </GhostButton>
             </div>
           )}
 
@@ -355,33 +369,19 @@ export default function UploadPage() {
 
           {error && <p className="text-[12.5px] text-ruby mb-3">{error}</p>}
 
-          <div className="relative">
-            {canSubmit && !submitting && (
-              <GlowEffect
-                colors={["#dbb44a", "#8a6b1a"]}
-                mode="breathe"
-                blur="soft"
-                scale={0.96}
-                duration={4}
-                className="opacity-60 rounded-xl"
-              />
+          <PrimaryButton disabled={!canSubmit || submitting} onClick={handleSubmit} className="w-full py-3.5 text-[15px]">
+            {submitting ? (
+              <>
+                <Loader2 size={16} className="animate-spin" /> Uploading…
+              </>
+            ) : audioSource === "tts" ? (
+              <>
+                Create clips <FileText size={16} />
+              </>
+            ) : (
+              "Create clips"
             )}
-            <PrimaryButton disabled={!canSubmit || submitting} onClick={handleSubmit} className="relative w-full py-3.5 text-[15px]">
-              {submitting ? (
-                <>
-                  <Loader2 size={16} className="animate-spin" /> Uploading…
-                </>
-              ) : audioSource === "tts" ? (
-                <>
-                  Generate my clips <FileText size={16} />
-                </>
-              ) : (
-                <>
-                  Generate my clips <Sparkles size={16} />
-                </>
-              )}
-            </PrimaryButton>
-          </div>
+          </PrimaryButton>
         </div>
       )}
     </div>
