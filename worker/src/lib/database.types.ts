@@ -21,6 +21,7 @@ export type JobStatus =
   | "analyzing"
   | "generating_visuals"
   | "selecting"
+  | "awaiting_selection"
   | "cutting"
   | "captioning"
   | "done"
@@ -107,6 +108,7 @@ export type SelectedSegment = {
   hook_type: string;
   suggested_caption: string;
   confidence: number; // 0-100
+  thumbnail_url?: string | null; // real frame grabbed from the source at discover time, not LLM output
 };
 
 export type Job = {
@@ -118,6 +120,7 @@ export type Job = {
   audio_analysis: AudioAnalysis | null;
   generated_visual_url: string | null;
   selected_segments: SelectedSegment[] | null;
+  confirmed_segment_indices: number[] | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;

@@ -103,7 +103,9 @@ export async function POST(request: Request) {
   }
 
   // 3. Hand off to the worker via the queue — processing never happens inline.
-  await getPipelineQueue().add("process-job", { jobId: job.id }, { jobId: job.id });
+  // "discover" phase: analyze + select candidate moments, then stop at
+  // awaiting_selection for the user to act on (see /api/jobs/[id]/confirm-selection).
+  await getPipelineQueue().add("process-job", { jobId: job.id, phase: "discover" }, { jobId: job.id });
 
   return NextResponse.json({ job }, { status: 201 });
 }

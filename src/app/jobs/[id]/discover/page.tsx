@@ -1,14 +1,14 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ProcessingView } from "@/components/screens/ProcessingView";
+import { DiscoverView } from "@/components/screens/DiscoverView";
 
-export default async function JobPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function DiscoverPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(`/login?next=/jobs/${id}`);
+  if (!user) redirect(`/login?next=/jobs/${id}/discover`);
 
   const { data: job } = await supabase
     .from("jobs")
@@ -18,7 +18,7 @@ export default async function JobPage({ params }: { params: Promise<{ id: string
 
   if (!job) notFound();
   if (job.status === "done") redirect(`/jobs/${id}/results`);
-  if (job.status === "awaiting_selection") redirect(`/jobs/${id}/discover`);
+  if (job.status !== "awaiting_selection") redirect(`/jobs/${id}`);
 
-  return <ProcessingView initialJob={job} />;
+  return <DiscoverView job={job} />;
 }

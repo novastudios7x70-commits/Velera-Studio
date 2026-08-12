@@ -14,6 +14,7 @@ import {
   PINTEREST_TARGET,
   VERTICAL_TARGET,
   extractThumbnail,
+  extractThumbnailAt,
   renderClip,
   renderClipWithAudioTrack,
   snapToBeats,
@@ -49,7 +50,7 @@ async function setStatus(
   await supabase.from("jobs").update({ status, ...extra }).eq("id", jobId);
 }
 
-export async function processJob(jobId: string): Promise<void> {
+export async function processJob(jobId: string, phase: "discover" | "transform"): Promise<void> {
   const supabase = createAdminClient();
   const workDir = await mkdtemp(path.join(tmpdir(), `velora-job-${jobId}-`));
 
@@ -72,27 +73,40 @@ export async function processJob(jobId: string): Promise<void> {
       );
     }
 
-    await runPipeline(supabase, job, upload, workDir);
+    if (phase === "discover") {
+      await runDiscoverPhase(supabase, job, upload, workDir);
+    } else {
+      await runTransformPhase(supabase, job, upload, workDir);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`[job ${jobId}] failed:`, message);
     await supabase.from("jobs").update({ status: "failed", error_message: message.slice(0, 2000) }).eq("id", jobId);
     // The initial credit reservation from create_job() is refunded so a
-    // pipeline failure never silently burns the user's credit.
+    // pipeline failure never silently burns the user's credit. Safe to call
+    // even mid-transform — it only ever refunds the single initial
+    // reservation, and claim_clip_credit's own top-ups for additional
+    // confirmed segments are a pre-existing, accepted gap this phase split
+    // doesn't change (same as the original single-phase pipeline).
     await supabase.rpc("refund_job_reservation", { p_job_id: jobId });
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
 }
 
-async function runPipeline(
+/**
+ * Steps 1-3 of the original single-phase pipeline: get source audio,
+ * analyze it, optionally generate visuals, select candidate moments. Ends
+ * at awaiting_selection instead of rendering — Discover is what the user
+ * sees next, and rendering only resumes once they confirm which moments to
+ * keep (runTransformPhase, triggered by POST /api/jobs/[id]/confirm-selection).
+ */
+async function runDiscoverPhase(
   supabase: SupabaseClient<Database>,
   job: Job,
   upload: Upload,
   workDir: string,
 ): Promise<void> {
-  // --- Step 1: source audio — either the already-uploaded file, or a
-  // voiceover generated from a typed script ---
   let sourceBytes: Buffer;
   let sourceExt: string;
 
@@ -106,8 +120,8 @@ async function runPipeline(
 
     // Re-host in our own storage (same reasoning as the generated-visual
     // path) so there's a durable record independent of ElevenLabs' own
-    // retention, and so file_url is populated for anything downstream that
-    // expects it.
+    // retention, and so file_url is populated for the transform phase (and
+    // anything else downstream) to read back later without regenerating.
     const rehostPath = `${upload.user_id}/tts/${job.id}.mp3`;
     await supabase.storage.from("uploads").upload(rehostPath, sourceBytes, { contentType: "audio/mpeg", upsert: true });
     await supabase.from("uploads").update({ file_url: rehostPath }).eq("id", upload.id);
@@ -123,7 +137,6 @@ async function runPipeline(
   await writeFile(sourcePath, sourceBytes);
   const sourceDuration = await probeDuration(sourcePath);
 
-  // --- Step 2: Analyze ---
   await setStatus(supabase, job.id, "analyzing");
   let transcript: Job["transcript"] = null;
   let audioAnalysis: Job["audio_analysis"] = null;
@@ -136,10 +149,14 @@ async function runPipeline(
     await supabase.from("jobs").update({ audio_analysis: audioAnalysis }).eq("id", job.id);
   }
 
-  // --- Step 2.5: Generate visuals (feature-flagged) ---
-  let visualSourcePath = sourcePath; // "has footage" path: cut directly from the upload
   let visualIsGenerated = false;
   let generatedWindowSeconds = sourceDuration;
+  // Whatever moment thumbnails get extracted from below — the original
+  // upload for the "has footage" path, or the generated visual once it
+  // exists. Only meaningful when the source actually has a video stream;
+  // an audio-only upload has no frames to grab (same constraint the
+  // original single-phase pipeline already had at render time).
+  let thumbnailSourcePath = sourcePath;
 
   if (upload.visual_source === "generate") {
     await setStatus(supabase, job.id, "generating_visuals");
@@ -159,16 +176,17 @@ async function runPipeline(
     await writeFile(genPath, genBytes);
 
     // Re-host in our own storage rather than linking Higgsfield's URL directly,
-    // so we control retention/redistribution regardless of their link lifetime.
+    // so we control retention/redistribution regardless of their link
+    // lifetime — and so the transform phase can re-download this exact
+    // asset later instead of paying to generate it a second time.
     const rehostPath = `${upload.user_id}/generated/${job.id}.mp4`;
     await supabase.storage.from("uploads").upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
 
-    visualSourcePath = genPath;
     visualIsGenerated = true;
+    thumbnailSourcePath = genPath;
     await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
   }
 
-  // --- Step 3: Select segments ---
   await setStatus(supabase, job.id, "selecting");
 
   const selectionWindow = visualIsGenerated ? generatedWindowSeconds : sourceDuration;
@@ -204,27 +222,102 @@ async function runPipeline(
       );
     }
   }
-  await supabase.from("jobs").update({ selected_segments: segments }).eq("id", job.id);
 
   if (segments.length === 0) {
     throw new Error("No hook-worthy segments were found in this upload");
   }
 
-  // Credit truthing: the first segment rides on create_job's initial
-  // reservation; every additional segment must successfully claim its own
-  // credit or gets dropped, so a job never produces more clips than the
-  // user has credit for.
-  const affordableSegments: SelectedSegment[] = [segments[0]];
-  for (let i = 1; i < segments.length; i++) {
-    const { data: claimed } = await supabase.rpc("claim_clip_credit", {
-      p_user_id: job.user_id,
-      p_generated: upload.visual_source === "generate",
-    });
-    if (!claimed) break;
-    affordableSegments.push(segments[i]);
+  // Real preview frames for Discover — one per candidate moment, grabbed
+  // straight from the source at that moment's own start time. Best-effort:
+  // an audio-only upload has no video stream to screenshot, so a failure
+  // here just leaves that moment without a thumbnail (the UI falls back to
+  // a plain placeholder) rather than failing the whole job.
+  const segmentsWithThumbnails: SelectedSegment[] = [];
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i];
+    try {
+      const thumbPath = path.join(workDir, `discover-${i}-thumb.jpg`);
+      await extractThumbnailAt(thumbnailSourcePath, thumbPath, segment.start_time + 1);
+      const thumbnailUrl = await uploadClipAsset(
+        supabase, upload.user_id, job.id, thumbPath, `discover-${i}-thumb.jpg`, "image/jpeg",
+      );
+      segmentsWithThumbnails.push({ ...segment, thumbnail_url: thumbnailUrl });
+    } catch (err) {
+      console.error(`[job ${job.id}] discover thumbnail ${i} failed:`, err instanceof Error ? err.message : err);
+      segmentsWithThumbnails.push(segment);
+    }
   }
 
-  // --- Step 4: Cut, caption, reformat per platform ---
+  // Discover is what the user sees next — no rendering happens until they
+  // confirm (see confirm-selection route + runTransformPhase).
+  await setStatus(supabase, job.id, "awaiting_selection", { selected_segments: segmentsWithThumbnails });
+}
+
+/**
+ * Step 4-5 of the original pipeline, unchanged in substance: cut, caption,
+ * and reformat per platform — now scoped to only the segments the user
+ * confirmed on Discover instead of every segment the LLM proposed. Runs as
+ * a fresh worker invocation (possibly a different machine), so it
+ * re-derives the source/visual files from storage rather than assuming
+ * runDiscoverPhase's workDir is still around — consistent with this
+ * worker's existing "no state outside Supabase" design.
+ */
+async function runTransformPhase(
+  supabase: SupabaseClient<Database>,
+  job: Job,
+  upload: Upload,
+  workDir: string,
+): Promise<void> {
+  const allSegments = job.selected_segments ?? [];
+  const confirmedIndices = job.confirmed_segment_indices ?? [];
+  const confirmedSegments = confirmedIndices
+    .map((i) => allSegments[i])
+    .filter((s): s is SelectedSegment => !!s);
+
+  if (confirmedSegments.length === 0) {
+    throw new Error("No confirmed segments to render");
+  }
+
+  // Re-derive the audio/video source. By this point upload.file_url is
+  // always populated — either the original upload, or the TTS voiceover
+  // runDiscoverPhase already generated and rehosted — so there's no
+  // TTS-specific branch here the way there is in the discover phase.
+  if (!upload.file_url) throw new Error("Upload is missing file_url");
+  const { data: fileBlob, error: downloadError } = await supabase.storage.from("uploads").download(upload.file_url);
+  if (downloadError || !fileBlob) throw new Error("Could not download source file from storage");
+  const sourceBytes = Buffer.from(await fileBlob.arrayBuffer());
+  const sourceExt = path.extname(upload.file_name) || "";
+  const sourcePath = path.join(workDir, `source${sourceExt}`);
+  await writeFile(sourcePath, sourceBytes);
+
+  const visualIsGenerated = upload.visual_source === "generate";
+  let visualSourcePath = sourcePath;
+
+  if (visualIsGenerated) {
+    if (!job.generated_visual_url) throw new Error("Job is missing generated_visual_url");
+    const { data: genBlob, error: genError } = await supabase.storage.from("uploads").download(job.generated_visual_url);
+    if (genError || !genBlob) throw new Error("Could not download generated visual from storage");
+    const genPath = path.join(workDir, "generated.mp4");
+    await writeFile(genPath, Buffer.from(await genBlob.arrayBuffer()));
+    visualSourcePath = genPath;
+  }
+
+  const transcript = job.transcript;
+  const audioAnalysis = job.audio_analysis;
+
+  // Credit truthing, same as the original single-phase pipeline: the first
+  // confirmed segment rides create_job()'s initial reservation, every
+  // additional one must successfully claim its own credit or gets dropped.
+  const affordableSegments: SelectedSegment[] = [confirmedSegments[0]];
+  for (let i = 1; i < confirmedSegments.length; i++) {
+    const { data: claimed } = await supabase.rpc("claim_clip_credit", {
+      p_user_id: job.user_id,
+      p_generated: visualIsGenerated,
+    });
+    if (!claimed) break;
+    affordableSegments.push(confirmedSegments[i]);
+  }
+
   await setStatus(supabase, job.id, "cutting");
 
   const beatGrid = upload.beat_sync_enabled ? audioAnalysis?.beat_grid : undefined;
@@ -325,6 +418,5 @@ async function runPipeline(
   const { error: clipsError } = await supabase.from("clips").insert(clipRows);
   if (clipsError) throw new Error(`Failed to save clips: ${clipsError.message}`);
 
-  // --- Step 5: Deliver ---
   await setStatus(supabase, job.id, "done");
 }

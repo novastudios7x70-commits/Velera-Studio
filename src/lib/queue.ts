@@ -5,6 +5,10 @@ export const PIPELINE_QUEUE_NAME = "velora-pipeline";
 
 export interface PipelineJobPayload {
   jobId: string;
+  // "discover" runs analysis + segment selection and stops at
+  // awaiting_selection; "transform" (enqueued by the confirm-selection
+  // route) resumes rendering only the confirmed segments.
+  phase: "discover" | "transform";
 }
 
 let connection: Redis | null = null;

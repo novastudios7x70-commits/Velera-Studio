@@ -32,7 +32,7 @@ function stepsFor(contentType: ContentType, visualSource: VisualSource, audioSou
 }
 
 const STATUS_ORDER: JobStatus[] = [
-  "queued", "generating_voiceover", "analyzing", "generating_visuals", "selecting", "cutting", "captioning", "done",
+  "queued", "generating_voiceover", "analyzing", "generating_visuals", "selecting", "awaiting_selection", "cutting", "captioning", "done",
 ];
 
 const HEADLINE_FOR_STATUS: Partial<Record<JobStatus, string>> = {
@@ -83,6 +83,7 @@ export function ProcessingView({ initialJob }: { initialJob: JobWithUpload }) {
 
   useEffect(() => {
     if (job.status === "done") router.replace(`/jobs/${job.id}/results`);
+    if (job.status === "awaiting_selection") router.replace(`/jobs/${job.id}/discover`);
   }, [job.status, job.id, router]);
 
   if (!job.upload) return null;

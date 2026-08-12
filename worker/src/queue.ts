@@ -7,6 +7,7 @@ export const PIPELINE_QUEUE_NAME = "velora-pipeline";
 
 export interface PipelineJobPayload {
   jobId: string;
+  phase: "discover" | "transform";
 }
 
 export function createRedisConnection() {

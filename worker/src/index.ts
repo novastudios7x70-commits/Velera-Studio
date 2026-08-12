@@ -34,8 +34,8 @@ for (const [key, value] of Object.entries(process.env)) {
 const worker = new Worker<PipelineJobPayload>(
   PIPELINE_QUEUE_NAME,
   async (job) => {
-    console.log(`[worker] picked up job ${job.data.jobId}`);
-    await processJob(job.data.jobId);
+    console.log(`[worker] picked up job ${job.data.jobId} (phase: ${job.data.phase})`);
+    await processJob(job.data.jobId, job.data.phase);
     console.log(`[worker] finished job ${job.data.jobId}`);
   },
   {

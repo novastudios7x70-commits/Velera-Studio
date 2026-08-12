@@ -135,9 +135,24 @@ export async function renderClipWithAudioTrack(params: {
 }
 
 export async function extractThumbnail(videoPath: string, outputPath: string): Promise<void> {
+  await extractThumbnailAt(videoPath, outputPath, 1);
+}
+
+/**
+ * Same as extractThumbnail but at an arbitrary offset into videoPath —
+ * used on Discover to grab a real preview frame from inside the *source*
+ * video at each candidate moment's own start time, rather than frame 1 of
+ * whatever file is passed in (which is all the original function needed,
+ * since it only ever ran on an already-cut short clip).
+ */
+export async function extractThumbnailAt(videoPath: string, outputPath: string, atSeconds: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
     ffmpeg(videoPath)
-      .screenshots({ timestamps: ["1"], filename: outputPath.split("/").pop(), folder: outputPath.split("/").slice(0, -1).join("/") || "." })
+      .screenshots({
+        timestamps: [Math.max(0, atSeconds)],
+        filename: outputPath.split("/").pop(),
+        folder: outputPath.split("/").slice(0, -1).join("/") || ".",
+      })
       .on("end", () => resolve())
       .on("error", (err) => reject(err));
   });

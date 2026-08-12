@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Music, Mic, Plus, FolderOpen, Clock, Wand2, Flame } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
-import { PrimaryButton, GhostButton } from "@/components/ui/Button";
+import { PrimaryButton } from "@/components/ui/Button";
 import { Reveal } from "@/components/ui/Reveal";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
@@ -38,6 +38,7 @@ const STATUS_LABEL: Record<JobStatus, string> = {
   analyzing: "Analyzing",
   generating_visuals: "Generating visuals",
   selecting: "Selecting moments",
+  awaiting_selection: "Moments ready",
   cutting: "Cutting",
   captioning: "Captioning",
   done: "Done",
@@ -158,7 +159,13 @@ export default async function DashboardPage() {
             return (
               <Link
                 key={p.id}
-                href={p.status === "done" ? `/jobs/${p.id}/results` : `/jobs/${p.id}`}
+                href={
+                  p.status === "done"
+                    ? `/jobs/${p.id}/results`
+                    : p.status === "awaiting_selection"
+                      ? `/jobs/${p.id}/discover`
+                      : `/jobs/${p.id}`
+                }
                 className="nova-card nova-card-select rounded-lg px-5 py-4 flex items-center justify-between text-left gap-4 flex-wrap"
               >
                 <div className="flex items-center gap-3.5">
