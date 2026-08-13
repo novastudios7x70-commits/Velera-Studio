@@ -47,7 +47,8 @@ async function setStatus(
   status: Job["status"],
   extra: Partial<Job> = {},
 ) {
-  await supabase.from("jobs").update({ status, ...extra }).eq("id", jobId);
+  const { error } = await supabase.from("jobs").update({ status, ...extra }).eq("id", jobId);
+  if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
 export async function processJob(jobId: string, phase: "discover" | "transform"): Promise<void> {
@@ -81,14 +82,22 @@ export async function processJob(jobId: string, phase: "discover" | "transform")
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`[job ${jobId}] failed:`, message);
-    await supabase.from("jobs").update({ status: "failed", error_message: message.slice(0, 2000) }).eq("id", jobId);
+    // Best-effort from here down — we're already in the failure path, so a
+    // second failure just gets logged rather than thrown (nothing upstream
+    // left to catch it, and throwing here would skip the workDir cleanup).
+    const { error: failStatusError } = await supabase
+      .from("jobs")
+      .update({ status: "failed", error_message: message.slice(0, 2000) })
+      .eq("id", jobId);
+    if (failStatusError) console.error(`[job ${jobId}] could not mark job as failed:`, failStatusError.message);
     // The initial credit reservation from create_job() is refunded so a
     // pipeline failure never silently burns the user's credit. Safe to call
     // even mid-transform — it only ever refunds the single initial
     // reservation, and claim_clip_credit's own top-ups for additional
     // confirmed segments are a pre-existing, accepted gap this phase split
     // doesn't change (same as the original single-phase pipeline).
-    await supabase.rpc("refund_job_reservation", { p_job_id: jobId });
+    const { error: refundError } = await supabase.rpc("refund_job_reservation", { p_job_id: jobId });
+    if (refundError) console.error(`[job ${jobId}] could not refund credit reservation:`, refundError.message);
   } finally {
     await rm(workDir, { recursive: true, force: true });
   }
@@ -123,8 +132,12 @@ async function runDiscoverPhase(
     // retention, and so file_url is populated for the transform phase (and
     // anything else downstream) to read back later without regenerating.
     const rehostPath = `${upload.user_id}/tts/${job.id}.mp3`;
-    await supabase.storage.from("uploads").upload(rehostPath, sourceBytes, { contentType: "audio/mpeg", upsert: true });
-    await supabase.from("uploads").update({ file_url: rehostPath }).eq("id", upload.id);
+    const { error: ttsUploadError } = await supabase.storage
+      .from("uploads")
+      .upload(rehostPath, sourceBytes, { contentType: "audio/mpeg", upsert: true });
+    if (ttsUploadError) throw new Error(`Failed to re-host TTS voiceover: ${ttsUploadError.message}`);
+    const { error: ttsUpdateError } = await supabase.from("uploads").update({ file_url: rehostPath }).eq("id", upload.id);
+    if (ttsUpdateError) throw new Error(`Failed to save TTS voiceover file_url: ${ttsUpdateError.message}`);
   } else {
     if (!upload.file_url) throw new Error("Upload is missing file_url");
     const { data: fileBlob, error: downloadError } = await supabase.storage.from("uploads").download(upload.file_url);
@@ -143,10 +156,12 @@ async function runDiscoverPhase(
 
   if (upload.content_type === "spoken") {
     transcript = await transcribeAudio(sourceBytes);
-    await supabase.from("jobs").update({ transcript }).eq("id", job.id);
+    const { error: transcriptError } = await supabase.from("jobs").update({ transcript }).eq("id", job.id);
+    if (transcriptError) throw new Error(`Failed to save transcript: ${transcriptError.message}`);
   } else {
     audioAnalysis = await analyzeAudio(sourceBytes, upload.beat_sync_enabled);
-    await supabase.from("jobs").update({ audio_analysis: audioAnalysis }).eq("id", job.id);
+    const { error: analysisError } = await supabase.from("jobs").update({ audio_analysis: audioAnalysis }).eq("id", job.id);
+    if (analysisError) throw new Error(`Failed to save audio analysis: ${analysisError.message}`);
   }
 
   let visualIsGenerated = false;
@@ -180,11 +195,15 @@ async function runDiscoverPhase(
     // lifetime — and so the transform phase can re-download this exact
     // asset later instead of paying to generate it a second time.
     const rehostPath = `${upload.user_id}/generated/${job.id}.mp4`;
-    await supabase.storage.from("uploads").upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
+    const { error: genUploadError } = await supabase.storage
+      .from("uploads")
+      .upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
+    if (genUploadError) throw new Error(`Failed to re-host generated visual: ${genUploadError.message}`);
 
     visualIsGenerated = true;
     thumbnailSourcePath = genPath;
-    await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
+    const { error: genUrlError } = await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
+    if (genUrlError) throw new Error(`Failed to save generated_visual_url: ${genUrlError.message}`);
   }
 
   await setStatus(supabase, job.id, "selecting");

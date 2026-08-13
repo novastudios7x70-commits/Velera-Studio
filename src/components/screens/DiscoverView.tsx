@@ -88,7 +88,7 @@ export function DiscoverView({ job }: { job: JobWithUpload }) {
               {selected.size} moment{selected.size === 1 ? "" : "s"} selected
             </span>
             <PrimaryButton onClick={confirmManualSelection} disabled={submitting} className="px-5 py-2.5 text-[13.5px]">
-              {submitting ? "Starting…" : "Now tell Velora what you want to make"} <ArrowRight size={14} />
+              {submitting ? "Starting…" : "Create selected clips"} <ArrowRight size={14} />
             </PrimaryButton>
           </div>
         </div>
