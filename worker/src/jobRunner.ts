@@ -9,6 +9,7 @@ import { analyzeAudio } from "./pipeline/audioAnalysis.js";
 import { generateVisual } from "./pipeline/generateVisuals.js";
 import { generateVoiceover } from "./pipeline/tts.js";
 import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
+import { explainSegments } from "./pipeline/explainSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
 import {
   PINTEREST_TARGET,
@@ -267,9 +268,26 @@ async function runDiscoverPhase(
     }
   }
 
+  // Real per-segment "why this was surfaced" text, grounded in each
+  // segment's own transcript excerpt/hook_type — best-effort, same as the
+  // thumbnail loop above: a failure here just leaves `why` unset on the
+  // affected segment(s) (the UI falls back to the static hook_type-based
+  // template) rather than failing the whole job.
+  let explanations: Map<number, string>;
+  try {
+    explanations = await explainSegments(upload.content_type, segmentsWithThumbnails, transcript);
+  } catch (err) {
+    console.error(`[job ${job.id}] discover explanations failed:`, err instanceof Error ? err.message : err);
+    explanations = new Map();
+  }
+  const segmentsWithExplanations = segmentsWithThumbnails.map((segment, i) => {
+    const why = explanations.get(i);
+    return why ? { ...segment, why } : segment;
+  });
+
   // Discover is what the user sees next — no rendering happens until they
   // confirm (see confirm-selection route + runTransformPhase).
-  await setStatus(supabase, job.id, "awaiting_selection", { selected_segments: segmentsWithThumbnails });
+  await setStatus(supabase, job.id, "awaiting_selection", { selected_segments: segmentsWithExplanations });
 }
 
 /**

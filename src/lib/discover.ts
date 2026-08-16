@@ -1,12 +1,11 @@
 import type { SelectedSegment } from "@/lib/database.types";
 
 /**
- * Static, hook_type-derived "why Velora picked this" copy — an honest
- * interim for Discover's launch: it's grounded in a real property of the
- * real segment (the hook_type Claude already classified it as in
- * selectSegments.ts), just not a bespoke sentence generated per moment yet.
- * That's commit 2 (a real Claude call over each segment's transcript
- * excerpt) — this function is what it replaces, not a permanent fixture.
+ * Static, hook_type-derived "why Velora picked this" copy — the fallback
+ * for when a segment doesn't have a real Claude-generated `why` (either an
+ * older job from before that existed, or the explainSegments() call failed
+ * for that segment at discover time). whyForSegment() below prefers the
+ * real per-segment text and only falls back to this map when it's absent.
  */
 const STATIC_WHY: Record<string, string> = {
   surprising_claim: "Opens with a claim that's likely to stop a scroll.",
@@ -18,8 +17,8 @@ const STATIC_WHY: Record<string, string> = {
   bridge: "A shift in the track worth building a clip around.",
 };
 
-export function whyForSegment(segment: Pick<SelectedSegment, "hook_type">): string {
-  return STATIC_WHY[segment.hook_type] ?? "A moment Velora flagged as worth sharing.";
+export function whyForSegment(segment: Pick<SelectedSegment, "hook_type" | "why">): string {
+  return segment.why ?? STATIC_WHY[segment.hook_type] ?? "A moment Velora flagged as worth sharing.";
 }
 
 export function formatTimestampRange(startSeconds: number, endSeconds: number): string {

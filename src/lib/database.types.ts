@@ -109,6 +109,7 @@ export type SelectedSegment = {
   suggested_caption: string;
   confidence: number; // 0-100
   thumbnail_url?: string | null; // real frame grabbed from the source at discover time, not LLM output
+  why?: string; // Claude-generated "why this was surfaced," grounded in this segment's own transcript excerpt + hook_type
 };
 
 export type Job = {

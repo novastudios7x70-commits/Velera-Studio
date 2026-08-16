@@ -10,14 +10,22 @@ export function DiscoverMomentCard({
   index,
   selected,
   onToggle,
+  matchReason,
+  dimmed,
 }: {
   segment: SelectedSegment;
   index: number;
   selected: boolean;
   onToggle: () => void;
+  // Set when a natural-language query is active: matchReason (present only
+  // on matched moments) replaces the normal discovery-time why-text rather
+  // than stacking alongside it; dimmed marks moments the query didn't match
+  // — visually de-emphasized only, never hidden or made unselectable.
+  matchReason?: string;
+  dimmed?: boolean;
 }) {
   return (
-    <div className="flex gap-4 py-5 border-b border-line last:border-b-0">
+    <div className={`flex gap-4 py-5 border-b border-line last:border-b-0 transition-opacity ${dimmed ? "opacity-50" : ""}`}>
       <div className="w-[100px] shrink-0">
         <ClipThumb seed={index} thumbnailUrl={segment.thumbnail_url} />
       </div>
@@ -27,7 +35,9 @@ export function DiscoverMomentCard({
         <div className="nova-mono text-[11.5px] text-muted">
           {formatTimestampRange(segment.start_time, segment.end_time)}
         </div>
-        <div className="text-[12.5px] text-muted leading-relaxed mt-0.5 max-w-[440px]">{whyForSegment(segment)}</div>
+        <div className="text-[12.5px] text-muted leading-relaxed mt-0.5 max-w-[440px]">
+          {matchReason ?? whyForSegment(segment)}
+        </div>
       </div>
 
       <button

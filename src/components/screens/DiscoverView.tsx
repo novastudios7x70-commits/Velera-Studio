@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { DiscoverMomentCard } from "@/components/ui/DiscoverMomentCard";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
@@ -20,6 +20,16 @@ export function DiscoverView({ job }: { job: JobWithUpload }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Natural-language re-ranking (Commit 2). `matches` is the last query's
+  // result — index -> "why this matches" reason — and stays in place across
+  // manual toggling until a new query replaces it (only submitting a new
+  // query clears/replaces it, per the approved spec). null means no query
+  // is active, which is the normal Commit 1 state.
+  const [query, setQuery] = useState("");
+  const [queryLoading, setQueryLoading] = useState(false);
+  const [matches, setMatches] = useState<Map<number, string> | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
+
   const toggle = (i: number) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -27,6 +37,39 @@ export function DiscoverView({ job }: { job: JobWithUpload }) {
       else next.add(i);
       return next;
     });
+  };
+
+  const submitQuery = async () => {
+    const trimmed = query.trim();
+    if (!trimmed || queryLoading) return;
+    setQueryLoading(true);
+    setQueryError(null);
+    try {
+      const res = await fetch(`/api/jobs/${job.id}/discover-query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: trimmed }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setQueryError(json.error ?? "Velora couldn't process that — please try again.");
+        setQueryLoading(false);
+        return;
+      }
+      const results = (json.matches ?? []) as { index: number; reason: string }[];
+      if (results.length === 0) {
+        setQueryError("Nothing here matches that — try rephrasing, or pick moments manually.");
+        setQueryLoading(false);
+        return;
+      }
+      const nextMatches = new Map(results.map((m) => [m.index, m.reason] as const));
+      setMatches(nextMatches);
+      setSelected(new Set(nextMatches.keys()));
+      setQueryLoading(false);
+    } catch {
+      setQueryError("Velora couldn't process that — please try again.");
+      setQueryLoading(false);
+    }
   };
 
   const confirm = async (indices: number[]) => {
@@ -68,14 +111,45 @@ export function DiscoverView({ job }: { job: JobWithUpload }) {
 
         <AnimatedGroup preset="fade" className="flex flex-col">
           {segments.map((segment, i) => (
-            <DiscoverMomentCard key={i} segment={segment} index={i} selected={selected.has(i)} onToggle={() => toggle(i)} />
+            <DiscoverMomentCard
+              key={i}
+              segment={segment}
+              index={i}
+              selected={selected.has(i)}
+              onToggle={() => toggle(i)}
+              matchReason={matches?.get(i)}
+              dimmed={matches !== null && !matches.has(i)}
+            />
           ))}
         </AnimatedGroup>
 
         {error && <p className="text-[12.5px] text-ruby mt-4">{error}</p>}
 
-        <div className="mt-8">
-          <GhostButton onClick={letVeloraChoose} disabled={submitting} className="px-4 py-2.5 text-[13px]">
+        <div className="mt-8 flex flex-col gap-3">
+          <div className="flex items-center gap-2">
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitQuery();
+              }}
+              placeholder={`Tell Velora what you're going for — e.g. "the funniest moment"`}
+              maxLength={300}
+              disabled={queryLoading}
+              aria-label="Describe what you want Velora to find"
+              className="flex-1 rounded-xl px-4 py-2.5 nova-root outline-none bg-panel border border-line text-text text-[13px] disabled:opacity-60"
+            />
+            <GhostButton
+              onClick={submitQuery}
+              disabled={queryLoading || !query.trim()}
+              className="px-4 py-2.5 text-[13px] shrink-0"
+            >
+              {queryLoading ? <Loader2 size={14} className="animate-spin" /> : "Ask Velora"}
+            </GhostButton>
+          </div>
+          {queryError && <p className="text-[12.5px] text-ruby">{queryError}</p>}
+
+          <GhostButton onClick={letVeloraChoose} disabled={submitting} className="px-4 py-2.5 text-[13px] self-start">
             Let Velora choose for me
           </GhostButton>
         </div>
