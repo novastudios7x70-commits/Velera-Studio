@@ -83,7 +83,9 @@ export async function runDiscoverQuery(
 
       const valid = parsed.data.matches.filter((m) => m.index < segments.length);
       return { ok: true, matches: valid };
-    } catch {
+    } catch (err) {
+      const status = err && typeof err === "object" && "status" in err ? (err as { status?: number }).status : undefined;
+      console.error(`[discoverQuery] Anthropic call failed (attempt ${attempt + 1}, status ${status ?? "n/a"}):`, err instanceof Error ? err.message : err);
       // fall through to retry, then to the honest failure below
     }
   }

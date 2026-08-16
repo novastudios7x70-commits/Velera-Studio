@@ -138,7 +138,9 @@ export async function selectSegments(
 
       const valid = parsed.data.segments.filter((s) => s.end_time > s.start_time && s.end_time <= maxEndSeconds + 0.5);
       if (valid.length > 0) return valid;
-    } catch {
+    } catch (err) {
+      const status = err && typeof err === "object" && "status" in err ? (err as { status?: number }).status : undefined;
+      console.error(`[selectSegments] Anthropic call failed (attempt ${attempt + 1}, status ${status ?? "n/a"}):`, err instanceof Error ? err.message : err);
       // fall through to retry, then to the heuristic fallback below
     }
   }

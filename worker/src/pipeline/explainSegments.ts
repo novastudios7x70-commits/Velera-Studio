@@ -72,7 +72,9 @@ export async function explainSegments(
         if (e.index < segments.length) result.set(e.index, e.why);
       }
       if (result.size > 0) return result;
-    } catch {
+    } catch (err) {
+      const status = err && typeof err === "object" && "status" in err ? (err as { status?: number }).status : undefined;
+      console.error(`[explainSegments] Anthropic call failed (attempt ${attempt + 1}, status ${status ?? "n/a"}):`, err instanceof Error ? err.message : err);
       // fall through to retry, then give up — caller treats an empty map
       // the same as any other per-segment fallback case
     }
