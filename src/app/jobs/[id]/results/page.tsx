@@ -1,6 +1,6 @@
 import { redirect, notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ResultsView } from "@/components/screens/ResultsView";
+import { ReviewView } from "@/components/screens/ReviewView";
 
 export default async function ResultsPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -24,5 +24,5 @@ export default async function ResultsPage({ params }: { params: Promise<{ id: st
     .eq("job_id", id)
     .order("created_at", { ascending: true });
 
-  return <ResultsView job={job} clips={clips ?? []} />;
+  return <ReviewView job={job} clips={clips ?? []} />;
 }
