@@ -52,7 +52,7 @@ async function setStatus(
   if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
-export async function processJob(jobId: string, phase: "discover" | "transform"): Promise<void> {
+export async function processJob(jobId: string, phase: "discover" | "transform" | "reclip"): Promise<void> {
   const supabase = createAdminClient();
   const workDir = await mkdtemp(path.join(tmpdir(), `velora-job-${jobId}-`));
 
@@ -77,8 +77,14 @@ export async function processJob(jobId: string, phase: "discover" | "transform")
 
     if (phase === "discover") {
       await runDiscoverPhase(supabase, job, upload, workDir);
-    } else {
+    } else if (phase === "transform") {
       await runTransformPhase(supabase, job, upload, workDir);
+    } else {
+      // Implemented in the next commit — the reclip phase needs the
+      // specific clip IDs and new start/end from the queue payload, which
+      // this jobId+phase signature doesn't carry yet, and nothing enqueues
+      // "reclip" until that commit either.
+      throw new Error("reclip phase not yet implemented");
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
