@@ -53,12 +53,14 @@ export function DiscoverView({ job }: { job: JobWithUpload }) {
       const json = await res.json();
       if (!res.ok) {
         setQueryError(json.error ?? "Velora couldn't process that — please try again.");
+        setMatches(null);
         setQueryLoading(false);
         return;
       }
       const results = (json.matches ?? []) as { index: number; reason: string }[];
       if (results.length === 0) {
         setQueryError("Nothing here matches that — try rephrasing, or pick moments manually.");
+        setMatches(null);
         setQueryLoading(false);
         return;
       }
@@ -68,6 +70,7 @@ export function DiscoverView({ job }: { job: JobWithUpload }) {
       setQueryLoading(false);
     } catch {
       setQueryError("Velora couldn't process that — please try again.");
+      setMatches(null);
       setQueryLoading(false);
     }
   };
