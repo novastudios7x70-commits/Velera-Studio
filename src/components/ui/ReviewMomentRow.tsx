@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, Loader2, Pencil, Wand2, X } from "lucide-react";
 import { VideoPlayer } from "@/components/ui/VideoPlayer";
 import { DownloadLink } from "@/components/ui/DownloadLink";
-import { GhostButton } from "@/components/ui/Button";
+import { GhostButton, PrimaryButton } from "@/components/ui/Button";
 import { HOOK_LABELS, PLATFORMS } from "@/lib/design-tokens";
 import type { Clip } from "@/lib/database.types";
 import type { ClipGroup } from "@/components/screens/ReviewView";
@@ -146,36 +146,23 @@ export function ReviewMomentRow({
         {error && <p className="text-[11.5px] text-ruby">{error}</p>}
 
         <div className="flex items-center gap-2 mt-1">
-          <button
-            onClick={approve}
-            disabled={busy}
-            aria-label="Approve"
-            aria-pressed={!!group.approvedAt}
-            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors disabled:opacity-50"
-            style={{
-              background: group.approvedAt ? "var(--text)" : "transparent",
-              border: `1px solid ${group.approvedAt ? "var(--text)" : "var(--line)"}`,
-            }}
-          >
-            {busy ? (
-              <Loader2 size={12} className="animate-spin text-muted" />
-            ) : (
-              <Check size={13} className={group.approvedAt ? "text-ink" : "text-muted"} />
-            )}
-          </button>
-          <button
+          <PrimaryButton onClick={approve} disabled={busy} className="px-3 py-1.5 text-[12px]">
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />}
+            {group.approvedAt ? "Approved" : "Approve"}
+          </PrimaryButton>
+          <GhostButton
             onClick={reject}
             disabled={busy}
-            aria-label="Reject"
-            aria-pressed={!!group.rejectedAt}
-            className="w-7 h-7 rounded-full flex items-center justify-center transition-colors disabled:opacity-50"
-            style={{
-              background: group.rejectedAt ? "var(--ruby)" : "transparent",
-              border: `1px solid ${group.rejectedAt ? "var(--ruby)" : "var(--line)"}`,
-            }}
+            className="px-3 py-1.5 text-[12px]"
+            style={
+              group.rejectedAt
+                ? { color: "white", background: "var(--ruby)", borderColor: "var(--ruby)" }
+                : { color: "var(--ruby)", borderColor: "var(--ruby-soft)" }
+            }
           >
-            <X size={13} className={group.rejectedAt ? "text-white" : "text-muted"} />
-          </button>
+            {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+            {group.rejectedAt ? "Hidden" : "Reject"}
+          </GhostButton>
         </div>
 
         <div className="grid grid-cols-3 gap-1.5 mt-1 max-w-[360px]">
