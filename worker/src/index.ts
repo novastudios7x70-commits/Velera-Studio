@@ -35,7 +35,7 @@ const worker = new Worker<PipelineJobPayload>(
   PIPELINE_QUEUE_NAME,
   async (job) => {
     console.log(`[worker] picked up job ${job.data.jobId} (phase: ${job.data.phase})`);
-    await processJob(job.data.jobId, job.data.phase);
+    await processJob(job.data);
     console.log(`[worker] finished job ${job.data.jobId}`);
   },
   {

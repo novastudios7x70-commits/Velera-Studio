@@ -185,6 +185,19 @@ export type Database = {
       create_job: { Args: { p_upload_id: string }; Returns: Job };
       claim_clip_credit: { Args: { p_user_id: string; p_generated: boolean }; Returns: boolean };
       refund_job_reservation: { Args: { p_job_id: string }; Returns: undefined };
+      apply_reclip: {
+        Args: {
+          p_vertical_clip_ids: string[];
+          p_pinterest_clip_ids: string[];
+          p_vertical_file_url: string;
+          p_pinterest_file_url: string;
+          p_thumbnail_url: string;
+          p_start_time: string;
+          p_end_time: string;
+          p_duration_seconds: number;
+        };
+        Returns: undefined;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

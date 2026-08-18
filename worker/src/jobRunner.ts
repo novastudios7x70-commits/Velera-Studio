@@ -1,5 +1,6 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 import ffmpeg from "fluent-ffmpeg";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -23,6 +24,7 @@ import {
 } from "./pipeline/ffmpegRender.js";
 import { uploadClipAsset } from "./pipeline/uploadOutputs.js";
 import type { Database, Job, SelectedSegment, Upload } from "./lib/database.types.js";
+import type { PipelineJobPayload } from "./queue.js";
 
 const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as const;
 // Must stay >= selectSegments.ts's MIN_CLIP_SECONDS (12) with real slack —
@@ -52,7 +54,8 @@ async function setStatus(
   if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
-export async function processJob(jobId: string, phase: "discover" | "transform" | "reclip"): Promise<void> {
+export async function processJob(payload: PipelineJobPayload): Promise<void> {
+  const jobId = payload.jobId;
   const supabase = createAdminClient();
   const workDir = await mkdtemp(path.join(tmpdir(), `velora-job-${jobId}-`));
 
@@ -75,16 +78,16 @@ export async function processJob(jobId: string, phase: "discover" | "transform" 
       );
     }
 
-    if (phase === "discover") {
+    if (payload.phase === "discover") {
       await runDiscoverPhase(supabase, job, upload, workDir);
-    } else if (phase === "transform") {
+    } else if (payload.phase === "transform") {
       await runTransformPhase(supabase, job, upload, workDir);
     } else {
-      // Implemented in the next commit — the reclip phase needs the
-      // specific clip IDs and new start/end from the queue payload, which
-      // this jobId+phase signature doesn't carry yet, and nothing enqueues
-      // "reclip" until that commit either.
-      throw new Error("reclip phase not yet implemented");
+      // Deliberately does not throw on failure — see runReclipPhase's own
+      // comment. A reclip failure must never hit the catch block below: no
+      // credit was charged for a reclip (nothing to refund), and the
+      // underlying job already succeeded (must not flip to "failed").
+      await runReclipPhase(supabase, job, upload, workDir, payload.clipIds, payload.startSec, payload.endSec);
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
@@ -462,4 +465,171 @@ async function runTransformPhase(
   if (clipsError) throw new Error(`Failed to save clips: ${clipsError.message}`);
 
   await setStatus(supabase, job.id, "done");
+}
+
+/**
+ * Re-renders one already-approved moment's clip rows at new start/end
+ * bounds (POST /api/clips/[id]/re-render enqueues this after setting
+ * render_started_at on the affected rows). Unlike the other two phases,
+ * this one never throws — a reclip failure is handled entirely inside this
+ * function, because processJob's outer catch below marks the job "failed"
+ * and refunds the initial credit reservation, and neither is correct here:
+ * the job is already `done`, and re-rendering an already-paid-for moment
+ * doesn't charge another credit, so there's nothing to refund. The only
+ * thing that must happen on either path is clearing render_started_at so
+ * Review stops showing these rows as mid-render. The original clip rows
+ * and storage objects are left completely untouched until the new render
+ * and all three uploads have fully succeeded.
+ */
+async function runReclipPhase(
+  supabase: SupabaseClient<Database>,
+  job: Job,
+  upload: Upload,
+  workDir: string,
+  clipIds: string[],
+  startSec: number,
+  endSec: number,
+): Promise<void> {
+  try {
+    const { data: existingClips, error: clipsFetchError } = await supabase
+      .from("clips")
+      .select("*")
+      .in("id", clipIds)
+      .eq("job_id", job.id);
+    if (clipsFetchError) throw new Error(`Failed to load clips for reclip: ${clipsFetchError.message}`);
+    if (!existingClips || existingClips.length === 0) throw new Error("No matching clip rows found for reclip");
+
+    const verticalClipIds = existingClips.filter((c) => c.platform !== "pinterest").map((c) => c.id);
+    const pinterestClipIds = existingClips.filter((c) => c.platform === "pinterest").map((c) => c.id);
+    const title = existingClips[0].title ?? "";
+
+    // Re-derive the source/visual files exactly as runTransformPhase does —
+    // this phase can run on a different worker instance than the one that
+    // originally rendered the clip, so nothing about that render is assumed
+    // to still be on disk anywhere.
+    if (!upload.file_url) throw new Error("Upload is missing file_url");
+    const { data: fileBlob, error: downloadError } = await supabase.storage.from("uploads").download(upload.file_url);
+    if (downloadError || !fileBlob) throw new Error("Could not download source file from storage");
+    const sourceBytes = Buffer.from(await fileBlob.arrayBuffer());
+    const sourceExt = path.extname(upload.file_name) || "";
+    const sourcePath = path.join(workDir, `source${sourceExt}`);
+    await writeFile(sourcePath, sourceBytes);
+
+    const visualIsGenerated = upload.visual_source === "generate";
+    let visualSourcePath = sourcePath;
+
+    if (visualIsGenerated) {
+      if (!job.generated_visual_url) throw new Error("Job is missing generated_visual_url");
+      const { data: genBlob, error: genError } = await supabase.storage.from("uploads").download(job.generated_visual_url);
+      if (genError || !genBlob) throw new Error("Could not download generated visual from storage");
+      const genPath = path.join(workDir, "generated.mp4");
+      await writeFile(genPath, Buffer.from(await genBlob.arrayBuffer()));
+      visualSourcePath = genPath;
+    }
+
+    const transcript = job.transcript;
+    const audioAnalysis = job.audio_analysis;
+    const beatGrid = upload.beat_sync_enabled ? audioAnalysis?.beat_grid : undefined;
+    const { start, end } = upload.beat_sync_enabled
+      ? snapToBeats(startSec, endSec, beatGrid)
+      : { start: startSec, end: endSec };
+
+    const cues =
+      upload.content_type === "spoken" && transcript
+        ? buildWordCues(transcript.words, start, end)
+        : buildMusicCue(title, start, end, beatGrid, upload.beat_sync_enabled);
+    const captionStyle = upload.content_type === "spoken" ? "Word" : "Caption";
+    const assPath = path.join(workDir, "reclip.ass");
+    await writeAssFile(assPath, buildAssDocument(cues, captionStyle));
+
+    // Distinct filenames so the new render never collides with (or
+    // upserts over) the original clip's still-live storage objects — the
+    // swap only happens below, once everything has succeeded.
+    const suffix = randomUUID();
+    const targets = [
+      { target: VERTICAL_TARGET, outPath: path.join(workDir, `reclip-${suffix}-vertical.mp4`) },
+      { target: PINTEREST_TARGET, outPath: path.join(workDir, `reclip-${suffix}-pinterest.mp4`) },
+    ];
+
+    for (const { target, outPath } of targets) {
+      if (visualIsGenerated) {
+        await renderClipWithAudioTrack({
+          inputPath: visualSourcePath,
+          audioPath: sourcePath,
+          outputPath: outPath,
+          startSec: start,
+          endSec: end,
+          assPath,
+          target,
+        });
+      } else {
+        await renderClip({
+          inputPath: visualSourcePath,
+          outputPath: outPath,
+          startSec: start,
+          endSec: end,
+          assPath,
+          target,
+        });
+      }
+    }
+
+    const thumbPath = path.join(workDir, `reclip-${suffix}-thumb.jpg`);
+    await extractThumbnail(targets[0].outPath, thumbPath);
+
+    const verticalUrl = await uploadClipAsset(
+      supabase, upload.user_id, job.id, targets[0].outPath, `reclip-${suffix}-vertical.mp4`, "video/mp4",
+    );
+    const pinterestUrl = await uploadClipAsset(
+      supabase, upload.user_id, job.id, targets[1].outPath, `reclip-${suffix}-pinterest.mp4`, "video/mp4",
+    );
+    const thumbUrl = await uploadClipAsset(
+      supabase, upload.user_id, job.id, thumbPath, `reclip-${suffix}-thumb.jpg`, "image/jpeg",
+    );
+
+    const durationSeconds = Math.round(end - start);
+    const startTime = start.toFixed(1);
+    const endTime = end.toFixed(1);
+
+    // Both renders and all three uploads succeeded — safe to swap the
+    // database pointers now. This is the only point at which the original
+    // clip rows are modified. A moment can span two groups with different
+    // file_url values (vertical vs pinterest), so this goes through the
+    // apply_reclip DB function rather than two separate .update() calls —
+    // one function call is one implicit transaction, so the two groups
+    // commit together or not at all; there's no window where vertical rows
+    // show the new render while pinterest is still on the old one.
+    const { error: applyError } = await supabase.rpc("apply_reclip", {
+      p_vertical_clip_ids: verticalClipIds,
+      p_pinterest_clip_ids: pinterestClipIds,
+      p_vertical_file_url: verticalUrl,
+      p_pinterest_file_url: pinterestUrl,
+      p_thumbnail_url: thumbUrl,
+      p_start_time: startTime,
+      p_end_time: endTime,
+      p_duration_seconds: durationSeconds,
+    });
+    if (applyError) throw new Error(`Failed to apply reclip: ${applyError.message}`);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    console.error(`[job ${job.id}] reclip failed:`, message);
+    // Isolated in its own try/catch, deliberately: this cleanup must never
+    // let an exception escape runReclipPhase. If it did, processJob's outer
+    // catch would treat it as a pipeline failure and mark the already-done
+    // job "failed" plus attempt a refund for credit that was never charged
+    // — exactly what this phase exists to avoid. A cleanup failure is
+    // logged alongside, not instead of, the original reclip failure above.
+    try {
+      const { error: clearError } = await supabase
+        .from("clips")
+        .update({ render_started_at: null })
+        .in("id", clipIds);
+      if (clearError) {
+        console.error(`[job ${job.id}] could not clear render_started_at after reclip failure:`, clearError.message);
+      }
+    } catch (clearErr) {
+      const clearMessage = clearErr instanceof Error ? clearErr.message : "Unknown error";
+      console.error(`[job ${job.id}] render_started_at cleanup threw after reclip failure:`, clearMessage);
+    }
+  }
 }
