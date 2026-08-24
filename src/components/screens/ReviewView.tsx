@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowRight, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
 import { ReviewMomentRow } from "@/components/ui/ReviewMomentRow";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
+import { createClient } from "@/lib/supabase/client";
 import type { Clip, ContentType, Job, VisualSource } from "@/lib/database.types";
 
 type JobWithUpload = Job & {
@@ -21,6 +22,8 @@ export interface ClipGroup {
   clips: Clip[];
   approvedAt: string | null;
   rejectedAt: string | null;
+  renderStartedAt: string | null;
+  renderFailedAt: string | null;
 }
 
 // Same grouping key ResultsView used — 5 platform rows per moment collapse
@@ -42,6 +45,8 @@ function groupClips(clips: Clip[]): ClipGroup[] {
         clips: [],
         approvedAt: clip.approved_at,
         rejectedAt: clip.rejected_at,
+        renderStartedAt: clip.render_started_at,
+        renderFailedAt: clip.render_failed_at,
       };
       map.set(key, group);
     }
@@ -62,6 +67,46 @@ export function ReviewView({ job, clips }: { job: JobWithUpload; clips: Clip[] }
   const applyPatch = (clipIds: string[], patch: Partial<Clip>) => {
     setAllClips((prev) => prev.map((c) => (clipIds.includes(c.id) ? { ...c, ...patch } : c)));
   };
+
+  // Live updates for reclip in-flight/completion — a reclip is enqueued by
+  // an API route this page never calls directly, so nothing else refreshes
+  // this data. Mirrors ProcessingView's own Realtime + polling pattern: the
+  // channel stays subscribed for the page's lifetime, and payload.new is a
+  // full row (postgrest always sends the complete post-image on UPDATE), so
+  // merging it in directly is safe and matches what ProcessingView already
+  // relies on for jobs.
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`review-clips-${job.id}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "clips", filter: `job_id=eq.${job.id}` },
+        (payload) => {
+          const newRow = payload.new as Clip;
+          setAllClips((prev) => prev.map((c) => (c.id === newRow.id ? newRow : c)));
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [job.id]);
+
+  // Backstop, same reasoning as ProcessingView's: Realtime can silently miss
+  // an event or drop the connection. Only active while something is
+  // actually in flight, so it costs nothing once every reclip has settled.
+  const anyRendering = allClips.some((c) => c.render_started_at);
+  useEffect(() => {
+    if (!anyRendering) return;
+    const supabase = createClient();
+    const interval = setInterval(async () => {
+      const { data } = await supabase.from("clips").select("*").eq("job_id", job.id);
+      if (data) setAllClips(data);
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [job.id, anyRendering]);
 
   return (
     <div className="nova-fade-in max-w-2xl mx-auto px-6 py-16 w-full">

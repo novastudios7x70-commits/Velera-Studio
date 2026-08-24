@@ -620,9 +620,13 @@ async function runReclipPhase(
     // — exactly what this phase exists to avoid. A cleanup failure is
     // logged alongside, not instead of, the original reclip failure above.
     try {
+      // render_failed_at is the explicit signal Review reads to show a
+      // failure state — set alongside clearing render_started_at so the two
+      // never disagree (never "still rendering" and "failed" at once, and
+      // never "failed" while a render_started_at claim is stuck non-null).
       const { error: clearError } = await supabase
         .from("clips")
-        .update({ render_started_at: null })
+        .update({ render_started_at: null, render_failed_at: new Date().toISOString() })
         .in("id", clipIds);
       if (clearError) {
         console.error(`[job ${job.id}] could not clear render_started_at after reclip failure:`, clearError.message);

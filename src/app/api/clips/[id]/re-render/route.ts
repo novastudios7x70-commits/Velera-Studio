@@ -117,7 +117,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   // than proceeding on an incomplete claim.
   const { data: claimed, error: claimError } = await supabase
     .from("clips")
-    .update({ render_started_at: new Date().toISOString() })
+    // Clearing render_failed_at here too — a fresh attempt shouldn't carry
+    // over a previous attempt's failure marker while it's in flight.
+    .update({ render_started_at: new Date().toISOString(), render_failed_at: null })
     .in("id", momentClipIds)
     .is("render_started_at", null)
     .select("id");

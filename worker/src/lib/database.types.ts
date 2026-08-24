@@ -145,6 +145,7 @@ export type Clip = {
   approved_at: string | null; // review state — mutually exclusive with rejected_at
   rejected_at: string | null; // soft-hide only; never deletes the row or the storage object
   render_started_at: string | null; // set while a re-render is in flight; cleared on success or failure
+  render_failed_at: string | null; // set only by a worker-side reclip failure; cleared when a new attempt starts or succeeds
   created_at: string;
 };
 
