@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronDown, ChevronUp, RefreshCw } from "lucide-react";
+import { Archive, ArrowRight, ChevronDown, ChevronUp, Loader2, RefreshCw } from "lucide-react";
 import { ReviewMomentRow } from "@/components/ui/ReviewMomentRow";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { createClient } from "@/lib/supabase/client";
+import { downloadClipsAsZip } from "@/lib/downloadZip";
 import type { Clip, ContentType, Job, VisualSource } from "@/lib/database.types";
 
 type JobWithUpload = Job & {
@@ -63,9 +64,33 @@ export function ReviewView({ job, clips }: { job: JobWithUpload; clips: Clip[] }
   const groups = groupClips(allClips);
   const visibleGroups = groups.filter((g) => !g.rejectedAt);
   const hiddenGroups = groups.filter((g) => g.rejectedAt);
+  const downloadableClips = visibleGroups.flatMap((g) => g.clips);
 
   const applyPatch = (clipIds: string[], patch: Partial<Clip>) => {
     setAllClips((prev) => prev.map((c) => (clipIds.includes(c.id) ? { ...c, ...patch } : c)));
+  };
+
+  const [zipBusy, setZipBusy] = useState(false);
+  const [zipError, setZipError] = useState<string | null>(null);
+  // zipBusy (state) drives the UI; this ref is the actual re-entrancy guard.
+  // State updates aren't synchronous/immediate across separate event
+  // handler invocations that fire before React re-renders (e.g. a rapid
+  // double-click), so checking zipBusy alone can race — a ref mutates the
+  // instant it's set, closing that window.
+  const zipBusyRef = useRef(false);
+
+  const handleDownloadAll = async () => {
+    if (zipBusyRef.current) return;
+    zipBusyRef.current = true;
+    setZipBusy(true);
+    setZipError(null);
+    try {
+      await downloadClipsAsZip(downloadableClips);
+    } catch (err) {
+      setZipError(err instanceof Error ? err.message : "Couldn't create the ZIP — try again.");
+    }
+    zipBusyRef.current = false;
+    setZipBusy(false);
   };
 
   // Live updates for reclip in-flight/completion — a reclip is enqueued by
@@ -117,12 +142,28 @@ export function ReviewView({ job, clips }: { job: JobWithUpload; clips: Clip[] }
           </TextEffect>
           <p className="text-[13.5px] text-muted">Formatted for TikTok, Shorts, Reels, Facebook &amp; Pinterest</p>
         </div>
-        <Link href="/dashboard">
-          <GhostButton className="px-4 py-2.5 text-[13.5px]">
-            <RefreshCw size={14} /> Back to dashboard
+        <div className="flex items-center gap-2.5">
+          <GhostButton
+            onClick={handleDownloadAll}
+            disabled={zipBusy || downloadableClips.length === 0}
+            className="px-4 py-2.5 text-[13.5px]"
+          >
+            {zipBusy ? <Loader2 size={14} className="animate-spin" /> : <Archive size={14} />}
+            {zipBusy ? "Preparing ZIP…" : "Download all"}
           </GhostButton>
-        </Link>
+          <Link href="/dashboard">
+            <GhostButton className="px-4 py-2.5 text-[13.5px]">
+              <RefreshCw size={14} /> Back to dashboard
+            </GhostButton>
+          </Link>
+        </div>
       </div>
+
+      {zipError && (
+        <p className="text-[12.5px] text-ruby mb-6 -mt-4">
+          {zipError} Individual downloads are still available below.
+        </p>
+      )}
 
       {groups.length === 0 ? (
         <div className="nova-card rounded-lg px-6 py-14 text-center text-[13.5px] text-muted">
