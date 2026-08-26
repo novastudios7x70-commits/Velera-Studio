@@ -150,6 +150,15 @@ export type Clip = {
   created_at: string;
 };
 
+export type Lead = {
+  id: string;
+  name: string;
+  company: string;
+  email: string;
+  details: string | null;
+  created_at: string;
+};
+
 export type Database = {
   public: {
     Tables: {
@@ -180,6 +189,12 @@ export type Database = {
         Relationships: [
           { foreignKeyName: "clips_job_id_fkey"; columns: ["job_id"]; referencedRelation: "jobs"; referencedColumns: ["id"] },
         ];
+      };
+      leads: {
+        Row: Lead;
+        Insert: Partial<Lead> & Pick<Lead, "name" | "company" | "email">;
+        Update: Partial<Lead>;
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
