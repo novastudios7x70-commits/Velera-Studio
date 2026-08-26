@@ -114,13 +114,12 @@ export default async function DashboardPage() {
         <Reveal>
           <div className="nova-card rounded-lg px-5 py-4 mb-6 flex items-center justify-between flex-wrap gap-3">
             <div className="text-[13px] text-text">
-              {profile.plan === "agency" || profile.plan === "trial" ? (
+              {profile.plan === "trial" ? (
                 <>
                   <span className="nova-mono">{profile.clips_remaining}</span> clips remaining on your trial
-                  {profile.generated_clips_remaining > 0 && (
-                    <span className="text-muted"> · {profile.generated_clips_remaining} can use generated visuals</span>
-                  )}
                 </>
+              ) : profile.plan === "agency" ? (
+                "Unlimited clips on your Agency plan"
               ) : (
                 <>
                   <span className="nova-mono">
