@@ -12,12 +12,12 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/Toast";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
+import { ACCEPTED_UPLOAD_EXTENSIONS, hasAcceptedUploadExtension } from "@/lib/uploadFormats";
 import type { AudioSource, ContentType, VisualSource } from "@/lib/database.types";
 
 const GENERATE_VISUALS_ENABLED = process.env.NEXT_PUBLIC_GENERATE_VISUALS_ENABLED === "true";
 const TTS_ENABLED = process.env.NEXT_PUBLIC_TTS_ENABLED === "true";
 const MAX_FILE_BYTES = 500 * 1024 * 1024; // 500MB
-const ACCEPTED_TYPES = [".mp4", ".mov", ".mp3", ".wav", ".m4a"];
 const MAX_SCRIPT_CHARS = 2000;
 
 interface Voice {
@@ -68,6 +68,13 @@ export default function UploadPage() {
   }, [audioSource, voices.length, voicesLoading]);
 
   const processFile = (f: File) => {
+    // The <input accept> attribute only filters the native file-picker
+    // dialog — it does nothing for drag-and-drop, so this is the only real
+    // enforcement of which formats the pipeline actually supports.
+    if (!hasAcceptedUploadExtension(f.name)) {
+      setError(`Unsupported file type — please upload ${ACCEPTED_UPLOAD_EXTENSIONS.join(", ")}.`);
+      return;
+    }
     if (f.size > MAX_FILE_BYTES) {
       setError("File is too large — max 500MB.");
       return;
@@ -311,7 +318,7 @@ export default function UploadPage() {
               onDrop={handleDrop}
               className="rounded-lg border border-line px-4 py-3.5 mb-4 flex items-center justify-between gap-3"
             >
-              <input ref={fileRef} type="file" className="hidden" accept={ACCEPTED_TYPES.join(",")} onChange={handleFile} />
+              <input ref={fileRef} type="file" className="hidden" accept={ACCEPTED_UPLOAD_EXTENSIONS.join(",")} onChange={handleFile} />
               <div className="flex items-center gap-3 min-w-0">
                 <UploadIcon size={16} className="text-muted shrink-0" />
                 <div className="min-w-0">

@@ -35,11 +35,24 @@ const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as cons
 // doesn't need to natively cover the whole window either.
 const GENERATED_VISUAL_MAX_SECONDS = 45;
 
-function probeDuration(filePath: string): Promise<number> {
+interface SourceProbe {
+  duration: number;
+  hasAudioStream: boolean;
+}
+
+// One ffprobe call covering both duration (already needed everywhere) and
+// audio-stream presence (needed before transcribeAudio/analyzeAudio, both of
+// which require real audio and have no way to detect its absence
+// themselves — they'd just hand a silent/video-only file to an external API
+// and surface whatever cryptic error it returns).
+function probeSource(filePath: string): Promise<SourceProbe> {
   return new Promise((resolve, reject) => {
     ffmpeg.ffprobe(filePath, (err, data) => {
       if (err) return reject(err);
-      resolve(data.format.duration ?? 0);
+      resolve({
+        duration: data.format.duration ?? 0,
+        hasAudioStream: data.streams.some((s) => s.codec_type === "audio"),
+      });
     });
   });
 }
@@ -158,7 +171,17 @@ async function runDiscoverPhase(
 
   const sourcePath = path.join(workDir, `source${sourceExt}`);
   await writeFile(sourcePath, sourceBytes);
-  const sourceDuration = await probeDuration(sourcePath);
+  const { duration: sourceDuration, hasAudioStream } = await probeSource(sourcePath);
+
+  // Applies to both branches below (transcribeAudio and analyzeAudio both
+  // require real audio) and runs before either — a video with no audio
+  // track should fail here with a clear reason, not minutes later as a
+  // cryptic error surfaced verbatim from AssemblyAI or librosa. TTS-sourced
+  // audio always has a stream (ElevenLabs output), so this never fires on
+  // that path — no need to special-case audio_source separately.
+  if (!hasAudioStream) {
+    throw new Error("This video doesn't contain an audio track. Please upload a video with audio.");
+  }
 
   await setStatus(supabase, job.id, "analyzing");
   let transcript: Job["transcript"] = null;

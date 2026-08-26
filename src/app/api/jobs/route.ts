@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { getPipelineQueue } from "@/lib/queue";
+import { ACCEPTED_UPLOAD_EXTENSIONS, hasAcceptedUploadExtension } from "@/lib/uploadFormats";
 
 const bodySchema = z
   .object({
@@ -61,6 +62,19 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "AI voiceover isn't available right now — please upload a recording instead." },
       { status: 403 },
+    );
+  }
+
+  // Defense-in-depth: the upload UI's own file picker/drag-and-drop already
+  // reject unsupported formats, but that's client-side and bypassable (a
+  // direct API call, or any gap in the UI check). Checked here, before any
+  // row is written and before create_job() reserves a credit below, so an
+  // unsupported file is rejected immediately rather than burning a credit
+  // and failing minutes later inside the worker.
+  if (body.audio_source === "upload" && !hasAcceptedUploadExtension(body.file_name!)) {
+    return NextResponse.json(
+      { error: `Unsupported file type — please upload ${ACCEPTED_UPLOAD_EXTENSIONS.join(", ")}.` },
+      { status: 400 },
     );
   }
 
