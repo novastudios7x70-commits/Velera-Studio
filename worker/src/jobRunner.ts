@@ -404,7 +404,7 @@ async function runTransformPhase(
         : buildMusicCue(segment.suggested_caption, start, end, beatGrid, upload.beat_sync_enabled);
     const captionStyle = upload.content_type === "spoken" ? "Word" : "Caption";
     const assPath = path.join(workDir, `segment-${i}.ass`);
-    await writeAssFile(assPath, buildAssDocument(cues, captionStyle));
+    await writeAssFile(assPath, buildAssDocument(cues, captionStyle, upload.brand_color));
 
     const targets = [
       { target: VERTICAL_TARGET, outPath: path.join(workDir, `segment-${i}-vertical.mp4`) },
@@ -563,7 +563,7 @@ async function runReclipPhase(
         : buildMusicCue(title, start, end, beatGrid, upload.beat_sync_enabled);
     const captionStyle = upload.content_type === "spoken" ? "Word" : "Caption";
     const assPath = path.join(workDir, "reclip.ass");
-    await writeAssFile(assPath, buildAssDocument(cues, captionStyle));
+    await writeAssFile(assPath, buildAssDocument(cues, captionStyle, upload.brand_color));
 
     // Distinct filenames so the new render never collides with (or
     // upserts over) the original clip's still-live storage objects — the

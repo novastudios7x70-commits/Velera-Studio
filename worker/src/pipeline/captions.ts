@@ -57,7 +57,26 @@ export function buildMusicCue(
   return [{ text: caption, startSec: revealAt, endSec: duration }];
 }
 
-const ASS_HEADER = `[Script Info]
+// Fallback matches this app's own --text token (#F2F1F6) — the color
+// every caption used before brand colors existed, and what an upload with
+// no brand_color snapshot (or an invalid one) still gets today.
+const DEFAULT_CAPTION_HEX = "F2F1F6";
+
+// ASS colors are &HAABBGGRR — blue/green/red order, the reverse of a CSS
+// hex string — so a naive substring copy silently produces the wrong
+// color instead of erroring, which is exactly why this is a named helper
+// with its own fallback rather than inlined at the call site.
+function hexToAssColor(hex: string | null | undefined): string {
+  const clean = hex && /^#?[0-9a-fA-F]{6}$/.test(hex) ? hex.replace(/^#/, "") : DEFAULT_CAPTION_HEX;
+  const r = clean.slice(0, 2);
+  const g = clean.slice(2, 4);
+  const b = clean.slice(4, 6);
+  return `&H00${b}${g}${r}`.toUpperCase();
+}
+
+function buildAssHeader(brandColorHex: string | null | undefined): string {
+  const primary = hexToAssColor(brandColorHex);
+  return `[Script Info]
 ScriptType: v4.00+
 PlayResX: 1080
 PlayResY: 1920
@@ -66,12 +85,13 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Caption,DejaVu Sans,72,&H00F2F1F6,&H00F2F1F6,&H00050507,&H99050507,1,0,0,0,100,100,0,0,1,4,0,2,60,60,220,1
-Style: Word,DejaVu Sans,84,&H00F2F1F6,&H0014B8B8,&H00050507,&H99050507,1,0,0,0,100,100,0,0,1,5,0,2,60,60,260,1
+Style: Caption,DejaVu Sans,72,${primary},${primary},&H00050507,&H99050507,1,0,0,0,100,100,0,0,1,4,0,2,60,60,220,1
+Style: Word,DejaVu Sans,84,${primary},&H0014B8B8,&H00050507,&H99050507,1,0,0,0,100,100,0,0,1,5,0,2,60,60,260,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
 `;
+}
 
 function escapeAssText(text: string): string {
   return text.replace(/\\/g, "\\\\").replace(/\{/g, "\\{").replace(/\}/g, "\\}").replace(/\n/g, "\\N");
@@ -80,14 +100,16 @@ function escapeAssText(text: string): string {
 /**
  * Builds a full .ass subtitle document. `style` selects the "Word" style
  * (larger, accent-tinted — spoken word-by-word reveals) or "Caption" style
- * (music's single styled overlay).
+ * (music's single styled overlay). `brandColorHex` is the uploader's brand
+ * accent color (uploads.brand_color) and becomes the caption text color;
+ * falls back to the original default when absent or malformed.
  */
-export function buildAssDocument(cues: CaptionCue[], style: "Word" | "Caption"): string {
+export function buildAssDocument(cues: CaptionCue[], style: "Word" | "Caption", brandColorHex?: string | null): string {
   const events = cues
     .map(
       (c) =>
         `Dialogue: 0,${toAssTime(c.startSec)},${toAssTime(c.endSec)},${style},,0,0,0,,${escapeAssText(c.text)}`,
     )
     .join("\n");
-  return ASS_HEADER + events + "\n";
+  return buildAssHeader(brandColorHex) + events + "\n";
 }

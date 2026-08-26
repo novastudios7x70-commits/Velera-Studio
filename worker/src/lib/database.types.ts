@@ -71,6 +71,7 @@ export type Upload = {
   audio_source: AudioSource;
   script_text: string | null;
   tts_voice_id: string | null;
+  brand_color: string | null; // snapshot of profiles.brand_color at job creation — see 0012_upload_brand_color.sql
   created_at: string;
 };
 

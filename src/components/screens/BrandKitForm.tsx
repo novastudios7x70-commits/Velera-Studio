@@ -44,7 +44,7 @@ export function BrandKitForm({ profile }: { profile: Profile }) {
         <div className="text-[12px] text-muted mb-2">Display name</div>
         <Field
           icon={Mail}
-          placeholder="How captions credit you"
+          placeholder="Your name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           onBlur={() => save({ display_name: name })}

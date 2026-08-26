@@ -78,6 +78,12 @@ export async function POST(request: Request) {
     );
   }
 
+  // Snapshot the caller's current brand color onto this upload — same
+  // reasoning as beat_sync_enabled/visual_style below: a per-job setting
+  // copied once at creation, not read live from profiles during rendering,
+  // so changing it later never changes an already-in-flight job's output.
+  const { data: profile } = await supabase.from("profiles").select("brand_color").eq("id", user.id).single();
+
   // 1. Record the upload. RLS ("own uploads") requires user_id = auth.uid(),
   // which this server client satisfies since it's bound to the caller's session.
   const isTts = body.audio_source === "tts";
@@ -96,6 +102,7 @@ export async function POST(request: Request) {
       audio_source: body.audio_source,
       script_text: isTts ? body.script_text! : null,
       tts_voice_id: isTts ? body.tts_voice_id! : null,
+      brand_color: profile?.brand_color ?? null,
     })
     .select()
     .single();
