@@ -76,9 +76,7 @@ export const PLANS: PlanDefinition[] = [
     popular: true,
     features: [
       "60 clips / month",
-      "Generated visuals included",
-      "Priority processing",
-      "Style presets & brand kit",
+      "20 generated-visual clips / month",
       "Everything in Creator",
     ],
     clipsAllowance: 60,
@@ -91,8 +89,7 @@ export const PLANS: PlanDefinition[] = [
     tagline: "For managing multiple artists or channels",
     features: [
       "Unlimited clips",
-      "Multiple workspaces",
-      "White-label exports",
+      "Unlimited generated-visual clips",
       "Dedicated support",
     ],
     clipsAllowance: null,
