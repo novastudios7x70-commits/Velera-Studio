@@ -32,6 +32,16 @@ export async function signUpAction(
     return { error: "Password must be at least 8 characters." };
   }
 
+  // Plan is chosen at signup but billing (Stripe checkout) is a separate,
+  // explicit step — a brand-new profile always starts on 'trial' regardless
+  // of the plan picked here (handle_new_user() never sees this value). The
+  // choice still isn't thrown away, though: it decides where signup sends
+  // the user next, so picking Creator/Studio actually leads somewhere
+  // instead of silently landing on the same dashboard as everyone else.
+  // Agency has no price and was never a selectable option in the picker, so
+  // it (and anything else unexpected) falls back to the plain dashboard.
+  const nextPath = plan === "creator" || plan === "studio" ? `/pricing?plan=${plan}` : "/dashboard";
+
   const supabase = await createClient();
   const { data, error } = await supabase.auth.signUp({
     email,
@@ -42,18 +52,17 @@ export async function signUpAction(
         terms_accepted: true,
         marketing_email_consent: marketingConsent,
       },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`,
+      // Reuses /auth/callback's existing ?next= redirect (already used by
+      // the password-reset flow) rather than inventing a second mechanism —
+      // this is what carries the chosen plan across the "confirm your
+      // email first" gap, where there's no session yet to redirect with.
+      emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback?next=${encodeURIComponent(nextPath)}`,
     },
   });
 
   if (error) {
     return { error: error.message };
   }
-
-  // Plan is chosen at signup but billing (Stripe checkout) is a separate,
-  // explicit step — a brand-new profile starts on 'trial' regardless of the
-  // plan the user picked here; /pricing is where the real subscription starts.
-  void plan;
 
   // Supabase projects with "Confirm email" on (the default) don't return a
   // session until the user clicks the emailed confirmation link — redirecting
@@ -67,7 +76,7 @@ export async function signUpAction(
   }
 
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(nextPath);
 }
 
 export async function logInAction(

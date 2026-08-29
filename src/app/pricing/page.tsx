@@ -6,7 +6,11 @@ import { CheckoutButton } from "@/components/BillingButtons";
 import { TextEffect } from "@/components/ui/motion-primitives/text-effect";
 import { AnimatedGroup } from "@/components/ui/motion-primitives/animated-group";
 
-export default async function PricingPage() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ plan?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -15,6 +19,13 @@ export default async function PricingPage() {
   const { data: profile } = user
     ? await supabase.from("profiles").select("plan").eq("id", user.id).single()
     : { data: null };
+
+  // Set only by signup's plan picker (?plan=creator|studio — Agency has no
+  // price and was never selectable there). Anything missing or unexpected
+  // just leaves this null, so the page falls back to its normal default
+  // (Studio's "most popular" badge) rather than a broken/blank state.
+  const { plan: planParam } = await searchParams;
+  const highlightedPlanId = PLANS.some((p) => p.price && p.id === planParam) ? planParam : null;
 
   return (
     <div className="nova-fade-in max-w-4xl mx-auto px-6 py-14 w-full">
@@ -28,15 +39,16 @@ export default async function PricingPage() {
       <AnimatedGroup preset="blur-slide" className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {PLANS.map((p) => {
           const active = profile?.plan === p.id;
+          const isHighlighted = highlightedPlanId ? p.id === highlightedPlanId : p.popular;
           return (
             <div
               key={p.id}
               className="nova-card rounded-lg p-6 flex flex-col relative"
-              style={{ borderColor: p.popular ? "rgba(255,255,255,0.28)" : "var(--line)", borderWidth: p.popular ? 1.5 : 1 }}
+              style={{ borderColor: isHighlighted ? "rgba(255,255,255,0.28)" : "var(--line)", borderWidth: isHighlighted ? 1.5 : 1 }}
             >
-              {p.popular && (
+              {isHighlighted && (
                 <div className="nova-mono absolute -top-3 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-full text-[10px] bg-text text-ink">
-                  most popular
+                  {highlightedPlanId ? "selected at signup" : "most popular"}
                 </div>
               )}
               <div className="nova-display font-semibold mb-0.5 text-[18px] text-text">{p.name}</div>
