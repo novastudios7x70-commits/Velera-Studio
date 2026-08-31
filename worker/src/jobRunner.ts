@@ -457,7 +457,7 @@ async function runTransformPhase(
     for (const platform of PLATFORMS_FOR_VERTICAL) {
       clipRows.push({
         job_id: job.id,
-        user_id: upload.user_id,
+        user_id: job.user_id,
         title,
         hook_type: segment.hook_type,
         start_time: start.toFixed(1),
@@ -471,7 +471,7 @@ async function runTransformPhase(
     }
     clipRows.push({
       job_id: job.id,
-      user_id: upload.user_id,
+      user_id: job.user_id,
       title,
       hook_type: segment.hook_type,
       start_time: start.toFixed(1),
