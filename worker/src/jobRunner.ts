@@ -377,84 +377,116 @@ async function runTransformPhase(
   // Credit truthing, same as the original single-phase pipeline: the first
   // confirmed segment rides create_job()'s initial reservation, every
   // additional one must successfully claim its own credit or gets dropped.
+  // Everything from here through the final clips insert is wrapped in a
+  // try/catch keyed on `extraCreditsClaimed`: if a render, upload, or the
+  // insert itself fails *after* one or more top-up credits were granted,
+  // processJob's outer catch only ever refunds the single initial
+  // create_job() reservation (see refund_job_reservation), so without this
+  // the top-ups would be silently burned with no clips to show for them.
   const affordableSegments: SelectedSegment[] = [confirmedSegments[0]];
-  for (let i = 1; i < confirmedSegments.length; i++) {
-    const { data: claimed } = await supabase.rpc("claim_clip_credit", {
-      p_user_id: job.user_id,
-      p_generated: visualIsGenerated,
-    });
-    if (!claimed) break;
-    affordableSegments.push(confirmedSegments[i]);
-  }
+  let extraCreditsClaimed = 0;
 
-  await setStatus(supabase, job.id, "cutting");
+  try {
+    for (let i = 1; i < confirmedSegments.length; i++) {
+      const { data: claimed, error: claimError } = await supabase.rpc("claim_clip_credit", {
+        p_user_id: job.user_id,
+        p_generated: visualIsGenerated,
+      });
+      // An RPC/database error is not the same thing as "out of credits" —
+      // claimed would come back falsy either way, so this must be checked
+      // explicitly rather than folded into the `!claimed` exhaustion check
+      // below, or a transient DB error would silently look like the user
+      // ran out of credits and drop every remaining segment.
+      if (claimError) {
+        throw new Error(`Failed to claim clip credit: ${claimError.message}`);
+      }
+      if (!claimed) break; // genuine exhaustion — stop adding segments, not a failure
+      extraCreditsClaimed++;
+      affordableSegments.push(confirmedSegments[i]);
+    }
 
-  const beatGrid = upload.beat_sync_enabled ? audioAnalysis?.beat_grid : undefined;
-  const clipRows: Database["public"]["Tables"]["clips"]["Insert"][] = [];
+    await setStatus(supabase, job.id, "cutting");
 
-  for (let i = 0; i < affordableSegments.length; i++) {
-    const segment = affordableSegments[i];
-    const { start, end } = upload.beat_sync_enabled
-      ? snapToBeats(segment.start_time, segment.end_time, beatGrid)
-      : { start: segment.start_time, end: segment.end_time };
+    const beatGrid = upload.beat_sync_enabled ? audioAnalysis?.beat_grid : undefined;
+    const clipRows: Database["public"]["Tables"]["clips"]["Insert"][] = [];
 
-    const cues =
-      upload.content_type === "spoken" && transcript
-        ? buildWordCues(transcript.words, start, end)
-        : buildMusicCue(segment.suggested_caption, start, end, beatGrid, upload.beat_sync_enabled);
-    const captionStyle = upload.content_type === "spoken" ? "Word" : "Caption";
-    const assPath = path.join(workDir, `segment-${i}.ass`);
-    await writeAssFile(assPath, buildAssDocument(cues, captionStyle, upload.brand_color));
+    for (let i = 0; i < affordableSegments.length; i++) {
+      const segment = affordableSegments[i];
+      const { start, end } = upload.beat_sync_enabled
+        ? snapToBeats(segment.start_time, segment.end_time, beatGrid)
+        : { start: segment.start_time, end: segment.end_time };
 
-    const targets = [
-      { target: VERTICAL_TARGET, outPath: path.join(workDir, `segment-${i}-vertical.mp4`) },
-      { target: PINTEREST_TARGET, outPath: path.join(workDir, `segment-${i}-pinterest.mp4`) },
-    ];
+      const cues =
+        upload.content_type === "spoken" && transcript
+          ? buildWordCues(transcript.words, start, end)
+          : buildMusicCue(segment.suggested_caption, start, end, beatGrid, upload.beat_sync_enabled);
+      const captionStyle = upload.content_type === "spoken" ? "Word" : "Caption";
+      const assPath = path.join(workDir, `segment-${i}.ass`);
+      await writeAssFile(assPath, buildAssDocument(cues, captionStyle, upload.brand_color));
 
-    for (const { target, outPath } of targets) {
-      if (visualIsGenerated) {
-        await renderClipWithAudioTrack({
-          inputPath: visualSourcePath,
-          audioPath: sourcePath,
-          outputPath: outPath,
-          startSec: start,
-          endSec: end,
-          assPath,
-          target,
-        });
-      } else {
-        await renderClip({
-          inputPath: visualSourcePath,
-          outputPath: outPath,
-          startSec: start,
-          endSec: end,
-          assPath,
-          target,
+      const targets = [
+        { target: VERTICAL_TARGET, outPath: path.join(workDir, `segment-${i}-vertical.mp4`) },
+        { target: PINTEREST_TARGET, outPath: path.join(workDir, `segment-${i}-pinterest.mp4`) },
+      ];
+
+      for (const { target, outPath } of targets) {
+        if (visualIsGenerated) {
+          await renderClipWithAudioTrack({
+            inputPath: visualSourcePath,
+            audioPath: sourcePath,
+            outputPath: outPath,
+            startSec: start,
+            endSec: end,
+            assPath,
+            target,
+          });
+        } else {
+          await renderClip({
+            inputPath: visualSourcePath,
+            outputPath: outPath,
+            startSec: start,
+            endSec: end,
+            assPath,
+            target,
+          });
+        }
+      }
+
+      if (i === affordableSegments.length - 1) {
+        await setStatus(supabase, job.id, "captioning");
+      }
+
+      const thumbPath = path.join(workDir, `segment-${i}-thumb.jpg`);
+      await extractThumbnail(targets[0].outPath, thumbPath);
+
+      const verticalUrl = await uploadClipAsset(
+        supabase, upload.user_id, job.id, targets[0].outPath, `segment-${i}-vertical.mp4`, "video/mp4",
+      );
+      const pinterestUrl = await uploadClipAsset(
+        supabase, upload.user_id, job.id, targets[1].outPath, `segment-${i}-pinterest.mp4`, "video/mp4",
+      );
+      const thumbUrl = await uploadClipAsset(
+        supabase, upload.user_id, job.id, thumbPath, `segment-${i}-thumb.jpg`, "image/jpeg",
+      );
+
+      const durationSeconds = Math.round(end - start);
+      const title = segment.suggested_caption;
+
+      for (const platform of PLATFORMS_FOR_VERTICAL) {
+        clipRows.push({
+          job_id: job.id,
+          user_id: job.user_id,
+          title,
+          hook_type: segment.hook_type,
+          start_time: start.toFixed(1),
+          end_time: end.toFixed(1),
+          duration_seconds: durationSeconds,
+          confidence: segment.confidence,
+          platform,
+          file_url: verticalUrl,
+          thumbnail_url: thumbUrl,
         });
       }
-    }
-
-    if (i === affordableSegments.length - 1) {
-      await setStatus(supabase, job.id, "captioning");
-    }
-
-    const thumbPath = path.join(workDir, `segment-${i}-thumb.jpg`);
-    await extractThumbnail(targets[0].outPath, thumbPath);
-
-    const verticalUrl = await uploadClipAsset(
-      supabase, upload.user_id, job.id, targets[0].outPath, `segment-${i}-vertical.mp4`, "video/mp4",
-    );
-    const pinterestUrl = await uploadClipAsset(
-      supabase, upload.user_id, job.id, targets[1].outPath, `segment-${i}-pinterest.mp4`, "video/mp4",
-    );
-    const thumbUrl = await uploadClipAsset(
-      supabase, upload.user_id, job.id, thumbPath, `segment-${i}-thumb.jpg`, "image/jpeg",
-    );
-
-    const durationSeconds = Math.round(end - start);
-    const title = segment.suggested_caption;
-
-    for (const platform of PLATFORMS_FOR_VERTICAL) {
       clipRows.push({
         job_id: job.id,
         user_id: job.user_id,
@@ -464,30 +496,35 @@ async function runTransformPhase(
         end_time: end.toFixed(1),
         duration_seconds: durationSeconds,
         confidence: segment.confidence,
-        platform,
-        file_url: verticalUrl,
+        platform: "pinterest",
+        file_url: pinterestUrl,
         thumbnail_url: thumbUrl,
       });
     }
-    clipRows.push({
-      job_id: job.id,
-      user_id: job.user_id,
-      title,
-      hook_type: segment.hook_type,
-      start_time: start.toFixed(1),
-      end_time: end.toFixed(1),
-      duration_seconds: durationSeconds,
-      confidence: segment.confidence,
-      platform: "pinterest",
-      file_url: pinterestUrl,
-      thumbnail_url: thumbUrl,
-    });
+
+    const { error: clipsError } = await supabase.from("clips").insert(clipRows);
+    if (clipsError) throw new Error(`Failed to save clips: ${clipsError.message}`);
+
+    await setStatus(supabase, job.id, "done");
+  } catch (err) {
+    // Refund every top-up credit granted above, beyond the initial
+    // create_job() reservation — processJob's outer catch (below) still
+    // handles that single initial reservation via the same
+    // refund_job_reservation RPC, which is a plain +1/-1 adjustment on the
+    // profile row (not tied to a specific reservation record), so calling it
+    // once per top-up here is the correct mirror of each claim_clip_credit
+    // call above and composes cleanly with the outer catch's own call.
+    for (let i = 0; i < extraCreditsClaimed; i++) {
+      const { error: refundError } = await supabase.rpc("refund_job_reservation", { p_job_id: job.id });
+      if (refundError) {
+        console.error(
+          `[job ${job.id}] could not refund top-up credit ${i + 1}/${extraCreditsClaimed}:`,
+          refundError.message,
+        );
+      }
+    }
+    throw err;
   }
-
-  const { error: clipsError } = await supabase.from("clips").insert(clipRows);
-  if (clipsError) throw new Error(`Failed to save clips: ${clipsError.message}`);
-
-  await setStatus(supabase, job.id, "done");
 }
 
 /**
