@@ -44,6 +44,7 @@ export type Profile = {
   stripe_customer_id: string | null;
   stripe_subscription_id: string | null;
   stripe_subscription_status: string | null;
+  stripe_event_at: string | null;
   marketing_email_consent: boolean;
   terms_accepted_at: string | null;
   created_at: string;

@@ -86,8 +86,25 @@ export async function POST(request: Request) {
         const customerId = String(subscription.customer);
         const priceId = subscription.items.data[0]?.price.id;
         const plan = priceId ? planForPriceId(priceId) : null;
+        const eventTime = new Date(event.created * 1000).toISOString();
 
-        const update: Partial<Profile> = { stripe_subscription_status: subscription.status };
+        // Stripe doesn't guarantee webhook delivery order and retries a slow/
+        // erroring endpoint, so a stale or redelivered event must never
+        // clobber state a newer event already applied (e.g. reviving a plan
+        // after a later cancellation, or an old price after a later plan
+        // change). stripe_event_at tracks the Stripe event time — not
+        // wall-clock receipt time — of whichever webhook most recently wrote
+        // these fields; skip applying anything older than or equal to it.
+        const { data: existing } = await supabase
+          .from("profiles")
+          .select("stripe_event_at")
+          .eq("stripe_customer_id", customerId)
+          .single();
+        if (existing?.stripe_event_at && existing.stripe_event_at >= eventTime) {
+          break;
+        }
+
+        const update: Partial<Profile> = { stripe_subscription_status: subscription.status, stripe_event_at: eventTime };
         if (plan) {
           const planDef = PLANS.find((p) => p.id === plan);
           update.plan = plan;
@@ -101,12 +118,20 @@ export async function POST(request: Request) {
       case "customer.subscription.deleted": {
         const subscription = event.data.object as Stripe.Subscription;
         const customerId = String(subscription.customer);
+        const eventTime = new Date(event.created * 1000).toISOString();
 
         const { data: profile } = await supabase
           .from("profiles")
-          .select("id, email")
+          .select("id, email, stripe_event_at")
           .eq("stripe_customer_id", customerId)
           .single();
+
+        // Same staleness guard as customer.subscription.updated above — a
+        // stale/redelivered deletion event must not re-apply (or re-email)
+        // on top of state a newer event has already superseded.
+        if (profile?.stripe_event_at && profile.stripe_event_at >= eventTime) {
+          break;
+        }
 
         await supabase
           .from("profiles")
@@ -117,6 +142,7 @@ export async function POST(request: Request) {
             clips_monthly_allowance: null,
             generated_clips_allowance: null,
             stripe_subscription_status: "canceled",
+            stripe_event_at: eventTime,
           })
           .eq("stripe_customer_id", customerId);
 

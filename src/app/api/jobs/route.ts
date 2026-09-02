@@ -65,6 +65,17 @@ export async function POST(request: Request) {
     );
   }
 
+  // file_path is client-supplied and stored as-is on the upload row, which
+  // the worker later downloads with the service-role client (bypassing the
+  // storage bucket's own owner-prefix RLS policies entirely). The upload UI
+  // always uploads to `${user.id}/...` first, so a legitimate request's
+  // file_path is always under the caller's own prefix — reject anything
+  // else rather than trusting it, or a direct API call could point the
+  // worker at another user's private storage object.
+  if (body.audio_source === "upload" && !body.file_path!.startsWith(`${user.id}/`)) {
+    return NextResponse.json({ error: "Invalid upload reference." }, { status: 403 });
+  }
+
   // Defense-in-depth: the upload UI's own file picker/drag-and-drop already
   // reject unsupported formats, but that's client-side and bypassable (a
   // direct API call, or any gap in the UI check). Checked here, before any

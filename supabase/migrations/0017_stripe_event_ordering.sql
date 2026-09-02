@@ -1,0 +1,24 @@
+-- Support column for stale/out-of-order Stripe webhook protection.
+--
+-- Stripe does not guarantee webhook delivery order, and retries a webhook
+-- endpoint that times out or returns a non-2xx status — so a stale
+-- customer.subscription.updated/deleted event can be delivered or retried
+-- after a newer one has already been applied. Without any way to compare
+-- "how new is this event" against "what's currently stored", the webhook
+-- handler had no choice but to apply every event unconditionally, which
+-- means a stale event could resurrect a plan/allowance a newer event (e.g.
+-- a cancellation) had already superseded.
+--
+-- stripe_event_at records the Stripe *event* timestamp (event.created,
+-- not wall-clock receipt time) of whichever webhook most recently wrote
+-- this profile's subscription fields, so the webhook route can compare an
+-- incoming event's timestamp against it before applying anything. No
+-- default/backfill needed — a null value simply means "no event has
+-- written this yet", which the route treats as "always apply".
+alter table profiles add column stripe_event_at timestamptz;
+
+-- Deliberately not added to the authenticated column-allowlist introduced
+-- in 0014_profiles_column_protection.sql (grant update (...) to
+-- authenticated is an explicit list, so a new column is excluded by
+-- default) — this column is only ever written by the Stripe webhook route
+-- via the service-role client, which bypasses grants entirely.
