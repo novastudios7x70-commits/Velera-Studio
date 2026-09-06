@@ -292,19 +292,15 @@ export function ReviewMomentRow({
                 </GhostButton>
               </div>
             ) : (
-              <div className="flex items-center gap-1.5">
-                <span className="nova-mono text-[11px] text-muted">
-                  {formatDuration(currentStartSec)} – {formatDuration(currentEndSec)}
-                </span>
-                <button
-                  onClick={startTrimEdit}
-                  disabled={busy}
-                  aria-label="Edit start and end time"
-                  className="text-muted hover:text-text transition-colors disabled:opacity-40 disabled:hover:text-muted"
-                >
-                  <Scissors size={11} />
-                </button>
-              </div>
+              <button
+                onClick={startTrimEdit}
+                disabled={busy}
+                aria-label="Edit start and end time"
+                className="flex items-center gap-1.5 nova-mono text-[11px] text-muted border border-line rounded-full px-2 py-0.5 transition-colors hover:border-white/20 hover:bg-white/[0.03] hover:text-text disabled:opacity-40 disabled:hover:border-line disabled:hover:bg-transparent disabled:hover:text-muted"
+              >
+                {formatDuration(currentStartSec)} – {formatDuration(currentEndSec)}
+                <Scissors size={11} />
+              </button>
             )}
           </div>
         )}
