@@ -2,7 +2,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
-import ffmpeg from "fluent-ffmpeg";
+import { spawn } from "node:child_process";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "./lib/supabase.js";
 import { transcribeAudio } from "./pipeline/transcribe.js";
@@ -40,19 +40,65 @@ interface SourceProbe {
   hasAudioStream: boolean;
 }
 
+// ffprobe only reads container metadata (never transcodes/decodes the full
+// file), so this normally completes in well under a second — 30s is
+// generous headroom over any plausible legitimate case, bounding a hang on
+// a crafted/malformed file instead of tying up a worker slot indefinitely.
+const FFPROBE_TIMEOUT_MS = 30_000;
+
 // One ffprobe call covering both duration (already needed everywhere) and
 // audio-stream presence (needed before transcribeAudio/analyzeAudio, both of
 // which require real audio and have no way to detect its absence
 // themselves — they'd just hand a silent/video-only file to an external API
 // and surface whatever cryptic error it returns).
-function probeSource(filePath: string): Promise<SourceProbe> {
+//
+// Spawns ffprobe directly (rather than fluent-ffmpeg's .ffprobe() wrapper)
+// specifically because fluent-ffmpeg never exposes the child process it
+// spawns internally — there'd be no way to kill it on timeout, which would
+// leave the underlying process running in the background instead of
+// actually bounding it. -print_format json produces the same
+// {format, streams} shape fluent-ffmpeg already normalized to, so the
+// duration/hasAudioStream extraction below is unchanged.
+export function probeSource(filePath: string): Promise<SourceProbe> {
   return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, data) => {
-      if (err) return reject(err);
-      resolve({
-        duration: data.format.duration ?? 0,
-        hasAudioStream: data.streams.some((s) => s.codec_type === "audio"),
-      });
+    const child = spawn("ffprobe", ["-print_format", "json", "-show_format", "-show_streams", filePath]);
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+
+    const timer = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      child.kill("SIGKILL");
+      reject(new Error(`ffprobe timed out after ${FFPROBE_TIMEOUT_MS}ms`));
+    }, FFPROBE_TIMEOUT_MS);
+
+    child.stdout.on("data", (chunk) => (stdout += chunk));
+    child.stderr.on("data", (chunk) => (stderr += chunk));
+
+    child.on("error", (err) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      reject(err);
+    });
+
+    child.on("close", (code) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (code !== 0) {
+        return reject(new Error(`ffprobe exited with code ${code}: ${stderr}`));
+      }
+      try {
+        const data = JSON.parse(stdout) as { format?: { duration?: string }; streams?: { codec_type?: string }[] };
+        resolve({
+          duration: Number(data.format?.duration ?? 0),
+          hasAudioStream: (data.streams ?? []).some((s) => s.codec_type === "audio"),
+        });
+      } catch (err) {
+        reject(err instanceof Error ? err : new Error("Failed to parse ffprobe output"));
+      }
     });
   });
 }

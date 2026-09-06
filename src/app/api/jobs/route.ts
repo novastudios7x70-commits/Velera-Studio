@@ -4,6 +4,18 @@ import { createClient } from "@/lib/supabase/server";
 import { getPipelineQueue } from "@/lib/queue";
 import { ACCEPTED_UPLOAD_EXTENSIONS, hasAcceptedUploadExtension } from "@/lib/uploadFormats";
 
+// ElevenLabs voice IDs are opaque alphanumeric tokens (their published
+// default voices, e.g. "21m00Tcm4TlvDq8ikWAM", are exactly this shape, and
+// custom/cloned voices follow the same convention) — never containing "/",
+// ".", whitespace, or URL-structural characters. tts_voice_id is spliced
+// directly into a URL path segment in worker/src/pipeline/tts.ts, so this
+// regex is a hard boundary, not just a format nicety: it's what stops a
+// crafted value (e.g. containing "../") from redirecting that request to a
+// different ElevenLabs endpoint via path-segment normalization. Duplicated
+// in tts.ts as a defensive re-check — src/ and worker/ never import across
+// their package boundary (see CLAUDE.md).
+const TTS_VOICE_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
 const bodySchema = z
   .object({
     content_type: z.enum(["music", "spoken"]),
@@ -24,7 +36,7 @@ const bodySchema = z
     file_name: z.string().min(1).optional(),
     // "tts" path — a typed script instead of a recording
     script_text: z.string().min(1).max(2000).optional(),
-    tts_voice_id: z.string().min(1).optional(),
+    tts_voice_id: z.string().regex(TTS_VOICE_ID_PATTERN).optional(),
   })
   .refine(
     (data) =>
