@@ -161,14 +161,24 @@ export async function extractThumbnail(videoPath: string, outputPath: string): P
  */
 export async function extractThumbnailAt(videoPath: string, outputPath: string, atSeconds: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
+    // fluent-ffmpeg's .screenshots() helper (used here previously) always
+    // builds its own -filter_complex containing a `split` filter — even for
+    // a single timestamp — and only gives that filter an explicit input
+    // label when a `size` option is passed (which this call never did).
+    // Without that label, ffmpeg has to auto-resolve the split's input pad,
+    // which is exactly what fails with "Cannot find a matching stream for
+    // unlabeled input pad 0 on filter Parsed_split_0". A single frame from a
+    // single input never needed the split helper's multi-output fan-out
+    // capability in the first place, so this extracts it directly — a plain
+    // seek + one-frame grab, with no filtergraph (and thus no split, no
+    // input-pad ambiguity) at all.
     ffmpeg(videoPath)
-      .screenshots({
-        timestamps: [Math.max(0, atSeconds)],
-        filename: outputPath.split("/").pop(),
-        folder: outputPath.split("/").slice(0, -1).join("/") || ".",
-      })
+      .inputOptions(["-ss", String(Math.max(0, atSeconds))])
+      .outputOptions(["-frames:v", "1"])
+      .output(outputPath)
       .on("end", () => resolve())
-      .on("error", (err) => reject(err));
+      .on("error", (err) => reject(err))
+      .run();
   });
 }
 
