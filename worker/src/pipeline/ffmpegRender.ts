@@ -137,6 +137,11 @@ export async function renderClipWithAudioTrack(params: {
         "-movflags", "+faststart",
       ])
       .output(outputPath)
+      // TEMPORARY DIAGNOSTIC — remove once the production Parsed_split_0
+      // investigation is resolved. Logs the exact command fluent-ffmpeg is
+      // about to run (file paths only — no API keys, env vars, or
+      // credentials ever pass through this command).
+      .on("start", (commandLine) => console.log(`[render] FFmpeg command: ${commandLine}`))
       .on("end", () => resolve())
       .on("error", (err) => reject(err))
       .run();
