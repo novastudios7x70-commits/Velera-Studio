@@ -12,6 +12,16 @@ assertEnv();
 // the Railway dashboard shows.
 console.log(`[worker] ELEVENLABS_API_KEY present: ${Boolean(env.elevenLabsApiKey)}`);
 
+// TEMPORARY DIAGNOSTIC — logs ONLY the names of env vars containing
+// "ELEVENLABS" (case-insensitive), never any value, length, or derived
+// data. Distinguishes "Railway isn't injecting the variable at all" from
+// "it's injected under a name that doesn't exactly match what the code
+// reads" (e.g. a stray character/casing difference invisible in the
+// Railway dashboard).
+console.log(
+  `[worker] ElevenLabs env keys: ${JSON.stringify(Object.keys(process.env).filter((k) => /elevenlabs/i.test(k)))}`,
+);
+
 // Diagnostic only — helps confirm at a glance which Supabase project and
 // service-role key length this deployment actually booted with, without
 // logging the secret itself.
