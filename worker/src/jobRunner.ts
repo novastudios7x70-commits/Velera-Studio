@@ -264,8 +264,20 @@ async function runDiscoverPhase(
     });
 
     const genRes = await fetch(videoUrl);
+    // TEMPORARY DIAGNOSTIC — remove once the production "generated video has
+    // no video stream" investigation is resolved. Logs only response
+    // metadata and a 16-byte hex prefix (to sanity-check the ISO-BMFF/MP4
+    // "ftyp" signature) — never videoUrl, headers beyond content-type/
+    // content-length, or any other response content.
+    console.log(
+      `[discover] generated visual fetch: status=${genRes.status} content-type=${genRes.headers.get("content-type")} content-length=${genRes.headers.get("content-length")}`,
+    );
     if (!genRes.ok) throw new Error(`Could not download generated visual (${genRes.status})`);
     const genBytes = Buffer.from(await genRes.arrayBuffer());
+    const looksLikeIsoBmff = genBytes.subarray(4, 8).toString("ascii") === "ftyp";
+    console.log(
+      `[discover] generated visual downloaded: bytes=${genBytes.length} first16Hex=${genBytes.subarray(0, 16).toString("hex")} looksLikeIsoBmff=${looksLikeIsoBmff}`,
+    );
     const genPath = path.join(workDir, "generated.mp4");
     await writeFile(genPath, genBytes);
 
