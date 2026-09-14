@@ -174,7 +174,13 @@ export async function extractThumbnailAt(videoPath: string, outputPath: string, 
     // input-pad ambiguity) at all.
     ffmpeg(videoPath)
       .inputOptions(["-ss", String(Math.max(0, atSeconds))])
-      .outputOptions(["-frames:v", "1"])
+      // Removing .screenshots() (above) also removed its always-present
+      // explicit -map (it mapped the split filter's own output pad) —
+      // without it, ffmpeg's automatic stream selection wasn't picking any
+      // stream at all for this image2 output, failing with "Output file #0
+      // does not contain any stream". Mapping the input's video stream
+      // directly restores an explicit selection, same as before.
+      .outputOptions(["-map", "0:v:0", "-frames:v", "1"])
       .output(outputPath)
       .on("end", () => resolve())
       .on("error", (err) => reject(err))
