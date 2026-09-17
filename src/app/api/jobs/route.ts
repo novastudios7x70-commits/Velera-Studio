@@ -44,7 +44,14 @@ const bodySchema = z
         ? !!data.file_path && !!data.file_name
         : !!data.script_text && !!data.tts_voice_id,
     { message: "Missing required fields for the selected audio source." },
-  );
+  )
+  // A TTS (written-script) upload has no footage of its own — file_url is
+  // always null for it (see the insert below) — so it can never be paired
+  // with visual_source "has": the worker would have no video to pull frames
+  // or clips from. TTS scripts always pair with generated visuals.
+  .refine((data) => !(data.audio_source === "tts" && data.visual_source === "has"), {
+    message: "A written script must use generated visuals — it has no footage of its own.",
+  });
 
 export async function POST(request: Request) {
   const supabase = await createClient();
