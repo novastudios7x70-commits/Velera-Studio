@@ -114,6 +114,26 @@ export type SelectedSegment = {
   why?: string; // Claude-generated "why this was surfaced," grounded in this segment's own transcript excerpt + hook_type
 };
 
+// One visual beat/shot of a script-driven generate-video scene plan (see
+// worker/src/pipeline/scenePlanner.ts) — the canonical type lives here,
+// same relationship as SelectedSegment above: scenePlanner.ts imports this
+// type and keeps only its Zod validation schema (which validates the LLM's
+// raw response against this shape) locally, so the stored/typed shape and
+// the pipeline that produces it can never silently diverge.
+//
+// Deliberately excludes timing (assigned later from the real voiceover
+// transcript, not the planner), a final visual_prompt (synthesized later
+// from these fields, not asked of the LLM directly), and any
+// character-reference/consistency fields (out of scope for the MVP).
+export type Scene = {
+  description: string;
+  characters: string[];
+  setting: string;
+  action: string;
+  shot_type: "establishing" | "wide" | "medium" | "two_shot" | "close_up" | "tracking";
+  camera_motion: string;
+};
+
 export type Job = {
   id: string;
   upload_id: string;
@@ -124,6 +144,7 @@ export type Job = {
   generated_visual_url: string | null;
   selected_segments: SelectedSegment[] | null;
   confirmed_segment_indices: number[] | null;
+  scene_plan: Scene[] | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;

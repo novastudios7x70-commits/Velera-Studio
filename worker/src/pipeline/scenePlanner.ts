@@ -1,11 +1,12 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { env } from "../lib/env.js";
+import type { Scene } from "../lib/database.types.js";
 
-// Step 1 of the script → scene-planning architecture (see the architecture
-// audit this session): the structured representation of one visual beat
-// derived from a user's script, and the Zod schema used to validate an
-// LLM's scene-planning output against that shape — mirroring how
+// The structured representation of one visual beat derived from a user's
+// script (Scene, imported from database.types.ts — see jobs.scene_plan in
+// 0019_jobs_scene_plan.sql) and the Zod schema used to validate an LLM's
+// scene-planning output against that shape — mirroring how
 // selectSegments.ts separates SelectedSegment (the hand-written stored
 // type, in database.types.ts) from segmentSchema (the private Zod schema
 // that validates the LLM's raw response before it's mapped into that type).
@@ -22,19 +23,6 @@ import { env } from "../lib/env.js";
 //   redundant with (and could drift from) the structured fields below.
 // - any character-reference/consistency fields — explicitly out of scope
 //   for the MVP; see the architecture audit's Future section.
-//
-// This type is not yet part of database.types.ts because there is no
-// database column for it yet (no migration has been added — see the
-// architecture audit's implementation plan, step 4) — it belongs there
-// once a `jobs.scene_plan` column exists to mirror.
-export type Scene = {
-  description: string;
-  characters: string[];
-  setting: string;
-  action: string;
-  shot_type: "establishing" | "wide" | "medium" | "two_shot" | "close_up" | "tracking";
-  camera_motion: string;
-};
 
 const sceneSchema = z.object({
   description: z.string().min(1).max(300),
