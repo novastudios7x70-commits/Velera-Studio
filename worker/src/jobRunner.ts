@@ -9,6 +9,7 @@ import { transcribeAudio } from "./pipeline/transcribe.js";
 import { analyzeAudio } from "./pipeline/audioAnalysis.js";
 import { generateVisual } from "./pipeline/generateVisuals.js";
 import { generateVoiceover } from "./pipeline/tts.js";
+import { planScenes } from "./pipeline/scenePlanner.js";
 import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
 import { explainSegments } from "./pipeline/explainSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
@@ -193,6 +194,24 @@ async function runDiscoverPhase(
     if (!upload.script_text || !upload.tts_voice_id) {
       throw new Error("TTS upload is missing script_text or tts_voice_id");
     }
+
+    // Script-driven scene plan for the generate-video path (see
+    // scenePlanner.ts) — planned from the same script_text right after it's
+    // confirmed non-null, before any audio work starts. Not yet consumed by
+    // anything downstream; a planning failure is left to the existing
+    // top-level catch in runJob, same as any other discover-phase failure.
+    //
+    // Gated on visual_source === "generate" too, not just audio_source ===
+    // "tts": a scene plan only makes sense for the generate-video path (it
+    // drives what gets generated), and this is defense-in-depth against any
+    // legacy row with the old invalid tts + has combination — API
+    // validation already prevents this for new uploads.
+    if (upload.visual_source === "generate") {
+      const scenePlan = await planScenes(upload.script_text);
+      const { error: scenePlanError } = await supabase.from("jobs").update({ scene_plan: scenePlan }).eq("id", job.id);
+      if (scenePlanError) throw new Error(`Failed to save scene plan: ${scenePlanError.message}`);
+    }
+
     sourceBytes = await generateVoiceover(upload.script_text, upload.tts_voice_id);
     sourceExt = ".mp3";
 
