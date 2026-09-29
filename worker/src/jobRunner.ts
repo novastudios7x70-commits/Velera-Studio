@@ -24,7 +24,7 @@ import {
   writeAssFile,
 } from "./pipeline/ffmpegRender.js";
 import { uploadClipAsset } from "./pipeline/uploadOutputs.js";
-import type { Database, Job, SelectedSegment, Upload } from "./lib/database.types.js";
+import type { Database, Job, Scene, SelectedSegment, Upload } from "./lib/database.types.js";
 import type { PipelineJobPayload } from "./queue.js";
 
 const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as const;
@@ -188,6 +188,13 @@ async function runDiscoverPhase(
 ): Promise<void> {
   let sourceBytes: Buffer;
   let sourceExt: string;
+  // Populated below only for tts + generate jobs (the only path that plans
+  // scenes at all — see the scene_plan write further down). Kept in memory
+  // rather than re-read from Supabase since this same function already
+  // holds it right after writing it; null/empty is the expected, unchanged
+  // state for every other job shape (has-footage, uploaded audio, or
+  // visual_source !== "generate").
+  let scenePlan: Scene[] | null = null;
 
   if (upload.audio_source === "tts") {
     await setStatus(supabase, job.id, "generating_voiceover");
@@ -207,7 +214,7 @@ async function runDiscoverPhase(
     // legacy row with the old invalid tts + has combination — API
     // validation already prevents this for new uploads.
     if (upload.visual_source === "generate") {
-      const scenePlan = await planScenes(upload.script_text);
+      scenePlan = await planScenes(upload.script_text);
       const { error: scenePlanError } = await supabase.from("jobs").update({ scene_plan: scenePlan }).eq("id", job.id);
       if (scenePlanError) throw new Error(`Failed to save scene plan: ${scenePlanError.message}`);
     }
@@ -275,11 +282,18 @@ async function runDiscoverPhase(
     await setStatus(supabase, job.id, "generating_visuals");
     generatedWindowSeconds = Math.min(sourceDuration, GENERATED_VISUAL_MAX_SECONDS);
 
+    // Step 4B-2: proves one real script-derived scene can flow into
+    // generateVisual() and produce a scene-specific request — deliberately
+    // just the first scene, not a loop over the whole plan (that's a later
+    // step). Jobs with no scene plan (every shape besides tts + generate)
+    // fall through to generateVisual()'s existing generic-prompt behavior
+    // unchanged, since `scene` is undefined for them.
     const { videoUrl } = await generateVisual({
       contentType: upload.content_type,
       moodDescription: upload.mood_description,
       style: upload.visual_style,
       durationSeconds: generatedWindowSeconds,
+      scene: scenePlan && scenePlan.length > 0 ? scenePlan[0] : undefined,
     });
 
     const genRes = await fetch(videoUrl);
