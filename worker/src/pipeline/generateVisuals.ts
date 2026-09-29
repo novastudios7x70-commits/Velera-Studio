@@ -1,5 +1,5 @@
 import { env } from "../lib/env.js";
-import type { ContentType, VisualStyle } from "../lib/database.types.js";
+import type { ContentType, Scene, VisualStyle } from "../lib/database.types.js";
 
 const POLL_INTERVAL_MS = 5000;
 const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
@@ -31,6 +31,13 @@ export async function generateVisual(params: {
   moodDescription: string | null;
   style: VisualStyle | null;
   durationSeconds: number;
+  // Optional script-derived scene (see scenePlanner.ts) to ground the
+  // generation prompts in — when omitted, prompt-building falls back to the
+  // original generic mood/style-only behavior unchanged, so the current
+  // caller (jobRunner.ts, which doesn't pass a scene) is unaffected. Not yet
+  // looped over per-scene by any caller — this only makes generateVisual()
+  // capable of scene-aware generation, one call at a time.
+  scene?: Scene;
 }): Promise<{ videoUrl: string }> {
   if (!env.generateVisualsEnabled) {
     throw new Error("Generate-visuals path is disabled (GENERATE_VISUALS_ENABLED=false)");
@@ -39,8 +46,8 @@ export async function generateVisual(params: {
     throw new Error("HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET are not configured");
   }
 
-  const scenePrompt = buildScenePrompt(params);
-  const motionPrompt = buildMotionPrompt(params);
+  const scenePrompt = params.scene ? buildSceneImagePrompt(params.scene) : buildScenePrompt(params);
+  const motionPrompt = params.scene ? buildSceneMotionPrompt(params.scene) : buildMotionPrompt(params);
   const duration = Math.min(Math.max(Math.round(params.durationSeconds), 3), 10);
 
   const imageResult = await submitAndPoll(IMAGE_MODEL_ID, {
@@ -140,5 +147,50 @@ function buildMotionPrompt(params: { contentType: ContentType; moodDescription: 
     parts.push("Motion synced to a steady rhythmic pulse.");
   }
   if (params.moodDescription) parts.push(`Mood: ${params.moodDescription}.`);
+  return parts.join(" ");
+}
+
+// Human-readable framing for each shot_type value, used only to phrase the
+// Higgsfield prompts below — not a re-derivation of the Scene shape itself.
+const SHOT_TYPE_LABELS: Record<Scene["shot_type"], string> = {
+  establishing: "Wide establishing shot",
+  wide: "Wide shot",
+  medium: "Medium shot",
+  two_shot: "Two-shot",
+  close_up: "Close-up shot",
+  tracking: "Tracking shot",
+};
+
+/**
+ * Image prompt for one script-derived Scene (see scenePlanner.ts). Built
+ * only from the Scene's own fields — description, characters, setting,
+ * action, shot_type, camera_motion — deliberately not inventing any story
+ * detail the scene plan didn't already contain, per the scene-planning
+ * architecture's "do not invent" rule (see scenePlanner.ts's prompt).
+ * camera_motion is intentionally left out of the image prompt (a still
+ * image has no motion to depict) and used in buildSceneMotionPrompt below
+ * instead.
+ */
+function buildSceneImagePrompt(scene: Scene): string {
+  const parts: string[] = [`${SHOT_TYPE_LABELS[scene.shot_type]} of ${scene.setting}.`];
+  if (scene.characters.length > 0) {
+    parts.push(`Characters present: ${scene.characters.join(", ")}.`);
+  }
+  parts.push(scene.description);
+  parts.push(`Action: ${scene.action}.`);
+  parts.push("Vertical 9:16 framing, no text or watermarks, cinematic quality, clear focal subject.");
+  return parts.join(" ");
+}
+
+/**
+ * Video (motion) prompt for the same Scene, animating the still image the
+ * image prompt above produced. Emphasizes the scene's own requested action
+ * and camera movement, per the architecture's image -> video two-step
+ * contract (see generateVisual's module comment) — no story details beyond
+ * what the Scene itself specifies.
+ */
+function buildSceneMotionPrompt(scene: Scene): string {
+  const parts: string[] = [`Camera motion: ${scene.camera_motion}.`, `Action: ${scene.action}.`];
+  parts.push(`${SHOT_TYPE_LABELS[scene.shot_type]}.`);
   return parts.join(" ");
 }
