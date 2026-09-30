@@ -7,6 +7,11 @@ const POLL_TIMEOUT_MS = 20 * 60 * 1000; // 20 minutes
 const IMAGE_MODEL_ID = process.env.HIGGSFIELD_IMAGE_MODEL || "higgsfield-ai/soul/standard";
 const VIDEO_MODEL_ID = process.env.HIGGSFIELD_VIDEO_MODEL || "higgsfield-ai/dop/standard";
 
+// The hard ceiling on Higgsfield visual generations per job (see the Step
+// 4E-4H cost/design audits) — the single source of truth every caller reads
+// from, rather than a duplicated literal 4.
+export const MAX_VISUAL_GENERATIONS_PER_JOB = 4;
+
 /**
  * Generate-visuals path (Step 2.5) — feature-flagged behind
  * GENERATE_VISUALS_ENABLED (see CLAUDE.md: Higgsfield's redistribution

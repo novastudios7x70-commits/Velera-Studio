@@ -7,9 +7,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "./lib/supabase.js";
 import { transcribeAudio } from "./pipeline/transcribe.js";
 import { analyzeAudio } from "./pipeline/audioAnalysis.js";
-import { generateVisual } from "./pipeline/generateVisuals.js";
+import { generateVisual, MAX_VISUAL_GENERATIONS_PER_JOB } from "./pipeline/generateVisuals.js";
 import { generateVoiceover } from "./pipeline/tts.js";
 import { planScenes } from "./pipeline/scenePlanner.js";
+import { groupScenesForGeneration, type SceneGenerationGroup } from "./pipeline/sceneGrouping.js";
 import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
 import { explainSegments } from "./pipeline/explainSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
@@ -24,7 +25,7 @@ import {
   writeAssFile,
 } from "./pipeline/ffmpegRender.js";
 import { uploadClipAsset } from "./pipeline/uploadOutputs.js";
-import type { Database, Job, Scene, SelectedSegment, Upload } from "./lib/database.types.js";
+import type { Database, Job, Scene, SceneVisual, SelectedSegment, Upload } from "./lib/database.types.js";
 import type { PipelineJobPayload } from "./queue.js";
 
 const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as const;
@@ -282,52 +283,121 @@ async function runDiscoverPhase(
     await setStatus(supabase, job.id, "generating_visuals");
     generatedWindowSeconds = Math.min(sourceDuration, GENERATED_VISUAL_MAX_SECONDS);
 
-    // Step 4B-2: proves one real script-derived scene can flow into
-    // generateVisual() and produce a scene-specific request — deliberately
-    // just the first scene, not a loop over the whole plan (that's a later
-    // step). Jobs with no scene plan (every shape besides tts + generate)
-    // fall through to generateVisual()'s existing generic-prompt behavior
-    // unchanged, since `scene` is undefined for them.
-    const { videoUrl } = await generateVisual({
-      contentType: upload.content_type,
-      moodDescription: upload.mood_description,
-      style: upload.visual_style,
-      durationSeconds: generatedWindowSeconds,
-      scene: scenePlan && scenePlan.length > 0 ? scenePlan[0] : undefined,
-    });
+    const hasScenePlan = !!(scenePlan && scenePlan.length > 0);
 
-    const genRes = await fetch(videoUrl);
-    // TEMPORARY DIAGNOSTIC — remove once the production "generated video has
-    // no video stream" investigation is resolved. Logs only response
-    // metadata and a 16-byte hex prefix (to sanity-check the ISO-BMFF/MP4
-    // "ftyp" signature) — never videoUrl, headers beyond content-type/
-    // content-length, or any other response content.
-    console.log(
-      `[discover] generated visual fetch: status=${genRes.status} content-type=${genRes.headers.get("content-type")} content-length=${genRes.headers.get("content-length")}`,
-    );
-    if (!genRes.ok) throw new Error(`Could not download generated visual (${genRes.status})`);
-    const genBytes = Buffer.from(await genRes.arrayBuffer());
-    const looksLikeIsoBmff = genBytes.subarray(4, 8).toString("ascii") === "ftyp";
-    console.log(
-      `[discover] generated visual downloaded: bytes=${genBytes.length} first16Hex=${genBytes.subarray(0, 16).toString("hex")} looksLikeIsoBmff=${looksLikeIsoBmff}`,
-    );
-    const genPath = path.join(workDir, "generated.mp4");
-    await writeFile(genPath, genBytes);
+    // Step 4J: group the scene plan into at most MAX_VISUAL_GENERATIONS_PER_JOB
+    // Higgsfield visual generations (see sceneGrouping.ts and the Step
+    // 4G-4I design audits) instead of the earlier single-generic-call
+    // behavior. Jobs with no scene plan (every shape besides tts + generate)
+    // fall back to a single synthetic group with no representative scene —
+    // exactly the old generic-prompt call, unchanged.
+    const groups: SceneGenerationGroup[] = hasScenePlan
+      ? groupScenesForGeneration(scenePlan!, MAX_VISUAL_GENERATIONS_PER_JOB)
+      : [{ group_id: 0, scene_indices: [], scenes: [] }];
 
-    // Re-host in our own storage rather than linking Higgsfield's URL directly,
-    // so we control retention/redistribution regardless of their link
-    // lifetime — and so the transform phase can re-download this exact
-    // asset later instead of paying to generate it a second time.
-    const rehostPath = `${upload.user_id}/generated/${job.id}.mp4`;
-    const { error: genUploadError } = await supabase.storage
-      .from("uploads")
-      .upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
-    if (genUploadError) throw new Error(`Failed to re-host generated visual: ${genUploadError.message}`);
+    // Defensive: groupScenesForGeneration() already enforces this ceiling
+    // itself, but this loop is what actually spends money on Higgsfield
+    // requests, so it never trusts that invariant blindly — a future bug in
+    // the grouping function can never turn into an extra paid request.
+    if (groups.length > MAX_VISUAL_GENERATIONS_PER_JOB) {
+      throw new Error(
+        `Scene visual generation budget exceeded: ${groups.length} > ${MAX_VISUAL_GENERATIONS_PER_JOB}`,
+      );
+    }
 
-    visualIsGenerated = true;
-    thumbnailSourcePath = genPath;
-    const { error: genUrlError } = await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
-    if (genUrlError) throw new Error(`Failed to save generated_visual_url: ${genUrlError.message}`);
+    // Positionally aligned with scenePlan — every scene starts "pending"
+    // and is filled in as its group's generation completes. Null (not this
+    // array) for jobs with no scene plan; nothing to record per-scene.
+    const sceneVisuals: SceneVisual[] | null = hasScenePlan
+      ? scenePlan!.map(() => ({ group_id: -1, status: "pending", video_url: null, generated_duration_seconds: null, error_message: null }))
+      : null;
+    if (sceneVisuals) {
+      for (const group of groups) {
+        for (const sceneIndex of group.scene_indices) sceneVisuals[sceneIndex].group_id = group.group_id;
+      }
+    }
+
+    // Sequential by design (Step 4J scope) — no added concurrency, no
+    // retries, so a mid-loop failure's blast radius (Higgsfield spend,
+    // failure handling) stays exactly as simple as the original
+    // single-call path: any throw here propagates to runJob's existing
+    // top-level catch, which marks the job failed and refunds the credit
+    // reservation, same as before.
+    for (const group of groups) {
+      const representativeScene = hasScenePlan ? group.scenes[0] : undefined;
+
+      const { videoUrl } = await generateVisual({
+        contentType: upload.content_type,
+        moodDescription: upload.mood_description,
+        style: upload.visual_style,
+        durationSeconds: generatedWindowSeconds,
+        scene: representativeScene,
+      });
+
+      const genRes = await fetch(videoUrl);
+      // TEMPORARY DIAGNOSTIC — remove once the production "generated video has
+      // no video stream" investigation is resolved. Logs only response
+      // metadata and a 16-byte hex prefix (to sanity-check the ISO-BMFF/MP4
+      // "ftyp" signature) — never videoUrl, headers beyond content-type/
+      // content-length, or any other response content.
+      console.log(
+        `[discover] generated visual fetch (group ${group.group_id}): status=${genRes.status} content-type=${genRes.headers.get("content-type")} content-length=${genRes.headers.get("content-length")}`,
+      );
+      if (!genRes.ok) throw new Error(`Could not download generated visual for group ${group.group_id} (${genRes.status})`);
+      const genBytes = Buffer.from(await genRes.arrayBuffer());
+      const looksLikeIsoBmff = genBytes.subarray(4, 8).toString("ascii") === "ftyp";
+      console.log(
+        `[discover] generated visual downloaded (group ${group.group_id}): bytes=${genBytes.length} first16Hex=${genBytes.subarray(0, 16).toString("hex")} looksLikeIsoBmff=${looksLikeIsoBmff}`,
+      );
+
+      // Group 0 always covers scene 0 (grouping always starts from scene 0)
+      // — or is the sole synthetic group when there's no scene plan — so
+      // it's exactly the single asset every existing downstream consumer
+      // (selectSegments' window, discover thumbnails, runTransformPhase,
+      // runReclipPhase) already expects. Reusing the identical path/field
+      // for it means none of that code needs to change yet, per this
+      // step's scope. Any additional group (only possible once a scene
+      // plan produces >1 group) gets its own, disambiguated path so it
+      // doesn't overwrite group 0's file — flagged explicitly in the Step
+      // 4J report, since those extra assets aren't consumed by anything
+      // downstream yet (that's the later assembly step).
+      const isPrimaryGroup = group.group_id === 0;
+      const groupGenPath = path.join(workDir, isPrimaryGroup ? "generated.mp4" : `generated-group-${group.group_id}.mp4`);
+      await writeFile(groupGenPath, genBytes);
+
+      const rehostPath = isPrimaryGroup
+        ? `${upload.user_id}/generated/${job.id}.mp4`
+        : `${upload.user_id}/generated/${job.id}-group-${group.group_id}.mp4`;
+      const { error: genUploadError } = await supabase.storage
+        .from("uploads")
+        .upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
+      if (genUploadError) throw new Error(`Failed to re-host generated visual for group ${group.group_id}: ${genUploadError.message}`);
+
+      if (sceneVisuals) {
+        const { duration: groupDuration } = await probeSource(groupGenPath);
+        for (const sceneIndex of group.scene_indices) {
+          sceneVisuals[sceneIndex] = {
+            group_id: group.group_id,
+            status: "completed",
+            video_url: rehostPath,
+            generated_duration_seconds: groupDuration,
+            error_message: null,
+          };
+        }
+      }
+
+      if (isPrimaryGroup) {
+        visualIsGenerated = true;
+        thumbnailSourcePath = groupGenPath;
+        const { error: genUrlError } = await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
+        if (genUrlError) throw new Error(`Failed to save generated_visual_url: ${genUrlError.message}`);
+      }
+    }
+
+    if (sceneVisuals) {
+      const { error: sceneVisualsError } = await supabase.from("jobs").update({ scene_visuals: sceneVisuals }).eq("id", job.id);
+      if (sceneVisualsError) throw new Error(`Failed to save scene visuals: ${sceneVisualsError.message}`);
+    }
   }
 
   await setStatus(supabase, job.id, "selecting");
