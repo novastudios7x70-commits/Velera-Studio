@@ -134,6 +134,21 @@ export type Scene = {
   camera_motion: string;
 };
 
+// One visual-generation group's result for the script-driven generate-video
+// path (see worker/src/pipeline/sceneGrouping.ts) — kept separate from Scene
+// by design: Scene is what the planner says should happen, SceneVisual is
+// what was actually generated. group_id is the sceneGrouping.ts group this
+// entry's scene belongs to; array position corresponds to the scene's own
+// position in scene_plan, same convention as Scene itself — no redundant
+// scene index field.
+export type SceneVisual = {
+  group_id: number;
+  status: "pending" | "completed" | "failed";
+  video_url: string | null;
+  generated_duration_seconds: number | null;
+  error_message?: string | null;
+};
+
 export type Job = {
   id: string;
   upload_id: string;
@@ -145,6 +160,7 @@ export type Job = {
   selected_segments: SelectedSegment[] | null;
   confirmed_segment_indices: number[] | null;
   scene_plan: Scene[] | null;
+  scene_visuals: SceneVisual[] | null;
   error_message: string | null;
   created_at: string;
   updated_at: string;
