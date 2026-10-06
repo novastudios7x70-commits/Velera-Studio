@@ -240,6 +240,10 @@ export type Database = {
       create_job: { Args: { p_upload_id: string }; Returns: Job };
       claim_clip_credit: { Args: { p_user_id: string; p_generated: boolean }; Returns: boolean };
       refund_job_reservation: { Args: { p_job_id: string }; Returns: undefined };
+      claim_upload_for_storage_cleanup: {
+        Args: { p_upload_id: string };
+        Returns: boolean;
+      };
       apply_reclip: {
         Args: {
           p_vertical_clip_ids: string[];

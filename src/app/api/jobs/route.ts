@@ -138,6 +138,72 @@ export async function POST(request: Request) {
     .single();
 
   if (uploadError || !upload) {
+    // Compensate for the browser having already uploaded the source file
+    // (for audio_source: "upload") before this insert ran — see the Storage
+    // lifecycle audit. A returned uploadError does NOT prove the insert
+    // never committed (a network blip after a successful write looks
+    // identical to the client), so first resolve which upload row, if any,
+    // actually exists for this exact path — this lookup only identifies a
+    // row to pass to the RPC below; it never decides whether to delete.
+    // claim_upload_for_storage_cleanup() (0021_upload_cleanup_claim.sql) is
+    // the actual synchronization primitive: it locks that row, checks no
+    // job references it, and durably marks it claimed in one atomic
+    // transaction — create_job() takes the same lock and refuses once a
+    // claim exists, so a `true` result here is a permanent guarantee, not a
+    // point-in-time snapshot a race could invalidate before the Storage
+    // delete runs. Only `true` means safe to delete; a `false` result or
+    // the RPC call itself erroring leaves the object in place for later
+    // scheduled cleanup rather than risk deleting something a concurrent
+    // request now depends on. A cleanup failure is logged but never changes
+    // the response: the original "could not save upload" error always wins.
+    if (body.audio_source === "upload" && body.file_path) {
+      const { data: possibleRows, error: lookupError } = await supabase
+        .from("uploads")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("file_url", body.file_path)
+        .limit(1);
+
+      if (lookupError) {
+        console.error(
+          `[api/jobs] Could not look up uploads-row state before Storage cleanup for user=${user.id} path=${body.file_path}:`,
+          lookupError,
+        );
+      } else if (possibleRows && possibleRows.length > 0) {
+        const existingUploadId = possibleRows[0].id;
+        const { data: claimed, error: claimError } = await supabase.rpc("claim_upload_for_storage_cleanup", {
+          p_upload_id: existingUploadId,
+        });
+
+        if (claimError) {
+          console.error(
+            `[api/jobs] claim_upload_for_storage_cleanup failed for upload=${existingUploadId} path=${body.file_path}:`,
+            claimError,
+          );
+        } else if (claimed === true) {
+          const { error: cleanupError } = await supabase.storage.from("uploads").remove([body.file_path]);
+          if (cleanupError) {
+            console.error(
+              `[api/jobs] Storage cleanup failed after uploads-insert error for user=${user.id} path=${body.file_path}:`,
+              cleanupError,
+            );
+          }
+        }
+      } else {
+        // No row exists at this point in time — but that's only a
+        // point-in-time observation, not a guarantee: another request could
+        // insert an uploads row for this exact file_path immediately after
+        // this lookup and go on to create a job referencing it before this
+        // request reaches the Storage delete below. There's no upload row
+        // yet for claim_upload_for_storage_cleanup() to lock, so nothing can
+        // synchronize against that race — leave the object in place for
+        // later scheduled/orphan cleanup rather than risk deleting out from
+        // under a request that hasn't happened yet.
+        console.error(
+          `[api/jobs] No uploads row found for user=${user.id} path=${body.file_path} after an insert error — leaving Storage object for scheduled cleanup.`,
+        );
+      }
+    }
     return NextResponse.json({ error: "Could not save upload." }, { status: 500 });
   }
 
@@ -150,6 +216,39 @@ export async function POST(request: Request) {
     const message = jobError?.message?.includes("remaining") || jobError?.message?.includes("allowance")
       ? "You're out of clip credits on your current plan."
       : "Could not start this job.";
+
+    // Compensate for create_job() failing after the uploads row (and, for
+    // audio_source: "upload", its already-uploaded Storage object) was
+    // already recorded — see the Storage lifecycle audit.
+    // claim_upload_for_storage_cleanup() (0021_upload_cleanup_claim.sql) is
+    // the synchronization primitive: it locks this upload row, checks no
+    // job references it, and durably marks it claimed in one atomic
+    // transaction — create_job() takes the same lock and refuses once a
+    // claim exists, so a `true` result here is a permanent guarantee, not a
+    // point-in-time snapshot a race could invalidate before the Storage
+    // delete below runs. create_job() raises before reserving any credit on
+    // every failure path (confirmed in 0016_subscription_status_gating.sql),
+    // so there is nothing to refund here regardless of the claim's outcome.
+    // A cleanup failure (or the RPC call itself failing) is logged but
+    // never changes the response: the original job-creation error always wins.
+    if (upload.file_url) {
+      const { data: claimed, error: claimError } = await supabase.rpc("claim_upload_for_storage_cleanup", {
+        p_upload_id: upload.id,
+      });
+
+      if (claimError) {
+        console.error(`[api/jobs] claim_upload_for_storage_cleanup failed for upload=${upload.id}:`, claimError);
+      } else if (claimed === true) {
+        const { error: cleanupError } = await supabase.storage.from("uploads").remove([upload.file_url]);
+        if (cleanupError) {
+          console.error(
+            `[api/jobs] Storage cleanup failed after create_job error for upload=${upload.id} path=${upload.file_url}:`,
+            cleanupError,
+          );
+        }
+      }
+    }
+
     return NextResponse.json({ error: message }, { status: 402 });
   }
 
