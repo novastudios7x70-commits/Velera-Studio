@@ -36,13 +36,16 @@ export async function generateVisual(params: {
   moodDescription: string | null;
   style: VisualStyle | null;
   durationSeconds: number;
-  // Optional script-derived scene (see scenePlanner.ts) to ground the
-  // generation prompts in — when omitted, prompt-building falls back to the
-  // original generic mood/style-only behavior unchanged, so the current
-  // caller (jobRunner.ts, which doesn't pass a scene) is unaffected. Not yet
-  // looped over per-scene by any caller — this only makes generateVisual()
-  // capable of scene-aware generation, one call at a time.
-  scene?: Scene;
+  // Full ordered Scene group (see sceneGrouping.ts) to ground the
+  // generation prompts in — the group's entire scene list, not just its
+  // first scene, so no scene's description/action is silently discarded
+  // before prompt construction. When omitted/empty, prompt-building falls
+  // back to the original generic mood/style-only behavior unchanged, so a
+  // caller with no scene plan (e.g. jobRunner.ts's synthetic single group)
+  // is unaffected. Still exactly one image + one video Higgsfield
+  // generation per call no matter how many scenes are in the group — this
+  // only changes what's in the prompt, never the request count.
+  scenes?: Scene[];
 }): Promise<{ videoUrl: string }> {
   if (!env.generateVisualsEnabled) {
     throw new Error("Generate-visuals path is disabled (GENERATE_VISUALS_ENABLED=false)");
@@ -51,8 +54,9 @@ export async function generateVisual(params: {
     throw new Error("HIGGSFIELD_KEY_ID / HIGGSFIELD_KEY_SECRET are not configured");
   }
 
-  const scenePrompt = params.scene ? buildSceneImagePrompt(params.scene) : buildScenePrompt(params);
-  const motionPrompt = params.scene ? buildSceneMotionPrompt(params.scene) : buildMotionPrompt(params);
+  const hasScenes = !!(params.scenes && params.scenes.length > 0);
+  const scenePrompt = hasScenes ? buildSceneImagePrompt(params.scenes!) : buildScenePrompt(params);
+  const motionPrompt = hasScenes ? buildSceneMotionPrompt(params.scenes!) : buildMotionPrompt(params);
   const duration = Math.min(Math.max(Math.round(params.durationSeconds), 3), 10);
 
   const imageResult = await submitAndPoll(IMAGE_MODEL_ID, {
@@ -167,35 +171,69 @@ const SHOT_TYPE_LABELS: Record<Scene["shot_type"], string> = {
 };
 
 /**
- * Image prompt for one script-derived Scene (see scenePlanner.ts). Built
- * only from the Scene's own fields — description, characters, setting,
- * action, shot_type, camera_motion — deliberately not inventing any story
- * detail the scene plan didn't already contain, per the scene-planning
- * architecture's "do not invent" rule (see scenePlanner.ts's prompt).
- * camera_motion is intentionally left out of the image prompt (a still
- * image has no motion to depict) and used in buildSceneMotionPrompt below
- * instead.
+ * Image prompt for one Higgsfield generation group's full ordered Scene
+ * list (see sceneGrouping.ts). Built only from the scenes' own fields —
+ * description, characters, setting, action, shot_type — deliberately not
+ * inventing any story detail the scene plan didn't already contain, per
+ * the scene-planning architecture's "do not invent" rule (see
+ * scenePlanner.ts's prompt). camera_motion is intentionally left out of the
+ * image prompt (a still image has no motion to depict) and used in
+ * buildSceneMotionPrompt below instead.
+ *
+ * A group can hold more than one scene (see sceneGrouping.ts), but
+ * Higgsfield still only ever generates ONE image for it — this prompt
+ * gives that one generation the combined narrative context of every scene
+ * in the group, in order, rather than claiming a separate shot exists per
+ * scene. No timing/duration is referenced: scene-level timing doesn't
+ * exist yet (see scenePlanner.ts).
  */
-function buildSceneImagePrompt(scene: Scene): string {
-  const parts: string[] = [`${SHOT_TYPE_LABELS[scene.shot_type]} of ${scene.setting}.`];
-  if (scene.characters.length > 0) {
-    parts.push(`Characters present: ${scene.characters.join(", ")}.`);
+function buildSceneImagePrompt(scenes: Scene[]): string {
+  const primary = scenes[0];
+  // Union across the group, not just the primary scene's own list — a
+  // later scene in the same group can introduce a character the first
+  // scene didn't mention.
+  const allCharacters = [...new Set(scenes.flatMap((s) => s.characters))];
+
+  const parts: string[] = [`${SHOT_TYPE_LABELS[primary.shot_type]} of ${primary.setting}.`];
+  if (allCharacters.length > 0) {
+    parts.push(`Characters present: ${allCharacters.join(", ")}.`);
   }
-  parts.push(scene.description);
-  parts.push(`Action: ${scene.action}.`);
+
+  if (scenes.length === 1) {
+    parts.push(primary.description);
+    parts.push(`Action: ${primary.action}.`);
+  } else {
+    parts.push(
+      "This one generated visual should capture the combined narrative progression of the following story beats, occurring in this order within the same continuous scene (not separate shots):",
+    );
+    scenes.forEach((scene, i) => {
+      parts.push(`${i + 1}) ${scene.description} Action: ${scene.action}.`);
+    });
+  }
+
   parts.push("Vertical 9:16 framing, no text or watermarks, cinematic quality, clear focal subject.");
   return parts.join(" ");
 }
 
 /**
- * Video (motion) prompt for the same Scene, animating the still image the
- * image prompt above produced. Emphasizes the scene's own requested action
- * and camera movement, per the architecture's image -> video two-step
- * contract (see generateVisual's module comment) — no story details beyond
- * what the Scene itself specifies.
+ * Video (motion) prompt for the same group, animating the still image the
+ * image prompt above produced. Emphasizes the group's requested actions, in
+ * order, and camera movement — no story details beyond what the scenes
+ * themselves specify, and still only one video generation regardless of
+ * how many scenes are in the group.
  */
-function buildSceneMotionPrompt(scene: Scene): string {
-  const parts: string[] = [`Camera motion: ${scene.camera_motion}.`, `Action: ${scene.action}.`];
-  parts.push(`${SHOT_TYPE_LABELS[scene.shot_type]}.`);
+function buildSceneMotionPrompt(scenes: Scene[]): string {
+  const primary = scenes[0];
+  const parts: string[] = [`Camera motion: ${primary.camera_motion}.`];
+
+  if (scenes.length === 1) {
+    parts.push(`Action: ${primary.action}.`);
+  } else {
+    parts.push(
+      `Action progresses through these story beats in order, within the same continuous scene: ${scenes.map((s) => s.action).join(" Then: ")}.`,
+    );
+  }
+
+  parts.push(`${SHOT_TYPE_LABELS[primary.shot_type]}.`);
   return parts.join(" ");
 }

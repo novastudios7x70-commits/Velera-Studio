@@ -324,14 +324,18 @@ async function runDiscoverPhase(
     // top-level catch, which marks the job failed and refunds the credit
     // reservation, same as before.
     for (const group of groups) {
-      const representativeScene = hasScenePlan ? group.scenes[0] : undefined;
+      // Full ordered group, not just its first scene — generateVisual()
+      // folds every scene's description/action into the prompt now (see
+      // buildSceneImagePrompt/buildSceneMotionPrompt), still exactly one
+      // image + one video Higgsfield generation for the whole group.
+      const groupScenes = hasScenePlan ? group.scenes : undefined;
 
       const { videoUrl } = await generateVisual({
         contentType: upload.content_type,
         moodDescription: upload.mood_description,
         style: upload.visual_style,
         durationSeconds: generatedWindowSeconds,
-        scene: representativeScene,
+        scenes: groupScenes,
       });
 
       const genRes = await fetch(videoUrl);
