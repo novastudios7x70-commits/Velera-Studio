@@ -112,10 +112,20 @@ export async function renderClipWithAudioTrack(params: {
       .input(inputPath)
       .inputOptions(["-stream_loop", "-1"])
       .input(audioPath)
+      // A simple filter (-vf/.videoFilters()) combined with an explicit
+      // -map across two inputs is a known-fragile ffmpeg combination: ffmpeg
+      // auto-inserts a `split` to reconcile its own simple-filtergraph
+      // stream-selection against the explicit -map, and that reconciliation
+      // can fail outright ("Cannot find a matching stream for unlabeled
+      // input pad 0 on filter Parsed_split_0"). Naming the filtered video's
+      // own output pad ([vout]) and mapping that label directly removes the
+      // ambiguity entirely — same filter chain, same options, just no
+      // automatic pad-resolution for ffmpeg to get wrong.
+      .complexFilter(`[0:v:0]${vf}[vout]`)
       .outputOptions([
         "-ss", String(startSec),
         "-t", String(duration),
-        "-map", "0:v:0",
+        "-map", "[vout]",
         "-map", "1:a:0",
         "-c:v", "libx264",
         "-preset", "ultrafast", // lower memory/CPU footprint than veryfast — matters on constrained worker instances
@@ -126,8 +136,12 @@ export async function renderClipWithAudioTrack(params: {
         "-shortest",
         "-movflags", "+faststart",
       ])
-      .videoFilters(vf)
       .output(outputPath)
+      // TEMPORARY DIAGNOSTIC — remove once the production Parsed_split_0
+      // investigation is resolved. Logs the exact command fluent-ffmpeg is
+      // about to run (file paths only — no API keys, env vars, or
+      // credentials ever pass through this command).
+      .on("start", (commandLine) => console.log(`[render] FFmpeg command: ${commandLine}`))
       .on("end", () => resolve())
       .on("error", (err) => reject(err))
       .run();
@@ -147,14 +161,30 @@ export async function extractThumbnail(videoPath: string, outputPath: string): P
  */
 export async function extractThumbnailAt(videoPath: string, outputPath: string, atSeconds: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
+    // fluent-ffmpeg's .screenshots() helper (used here previously) always
+    // builds its own -filter_complex containing a `split` filter — even for
+    // a single timestamp — and only gives that filter an explicit input
+    // label when a `size` option is passed (which this call never did).
+    // Without that label, ffmpeg has to auto-resolve the split's input pad,
+    // which is exactly what fails with "Cannot find a matching stream for
+    // unlabeled input pad 0 on filter Parsed_split_0". A single frame from a
+    // single input never needed the split helper's multi-output fan-out
+    // capability in the first place, so this extracts it directly — a plain
+    // seek + one-frame grab, with no filtergraph (and thus no split, no
+    // input-pad ambiguity) at all.
     ffmpeg(videoPath)
-      .screenshots({
-        timestamps: [Math.max(0, atSeconds)],
-        filename: outputPath.split("/").pop(),
-        folder: outputPath.split("/").slice(0, -1).join("/") || ".",
-      })
+      .inputOptions(["-ss", String(Math.max(0, atSeconds))])
+      // Removing .screenshots() (above) also removed its always-present
+      // explicit -map (it mapped the split filter's own output pad) —
+      // without it, ffmpeg's automatic stream selection wasn't picking any
+      // stream at all for this image2 output, failing with "Output file #0
+      // does not contain any stream". Mapping the input's video stream
+      // directly restores an explicit selection, same as before.
+      .outputOptions(["-map", "0:v:0", "-frames:v", "1"])
+      .output(outputPath)
       .on("end", () => resolve())
-      .on("error", (err) => reject(err));
+      .on("error", (err) => reject(err))
+      .run();
   });
 }
 
