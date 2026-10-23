@@ -113,24 +113,51 @@ async function setStatus(
   if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
+async function removeGeneratedVisual(
+  supabase: SupabaseClient<Database>,
+  upload: Upload,
+  job: Job,
+): Promise<void> {
+  if (upload.visual_source !== "generate") return;
+
+  const path = job.generated_visual_url ?? `${upload.user_id}/generated/${job.id}.mp4`;
+
+  const { error } = await supabase.storage.from("uploads").remove([path]);
+
+  if (error) {
+    console.error(`[job ${job.id}] could not remove generated visual:`, error.message);
+  }
+}
+
 export async function processJob(payload: PipelineJobPayload): Promise<void> {
   const jobId = payload.jobId;
   const supabase = createAdminClient();
   const workDir = await mkdtemp(path.join(tmpdir(), `velora-job-${jobId}-`));
-
+  
+  let job: Job | null = null;
+  let upload: Upload | null = null;
+  
   try {
-    const { data: job, error: jobError } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+    const { data: fetchedJob, error: jobError } = await supabase
+  .from("jobs")
+  .select("*")
+  .eq("id", jobId)
+  .single();
+
+job = fetchedJob;
     if (jobError || !job) {
       throw new Error(
         `Job ${jobId} not found: ${jobError?.message ?? "no row returned"} (code: ${jobError?.code ?? "n/a"})`,
       );
     }
 
-    const { data: upload, error: uploadError } = await supabase
-      .from("uploads")
-      .select("*")
-      .eq("id", job.upload_id)
-      .single();
+    const { data: fetchedUpload, error: uploadError } = await supabase
+  .from("uploads")
+  .select("*")
+  .eq("id", job.upload_id)
+  .single();
+
+upload = fetchedUpload;
     if (uploadError || !upload) {
       throw new Error(
         `Upload for job ${jobId} not found: ${uploadError?.message ?? "no row returned"} (code: ${uploadError?.code ?? "n/a"})`,
@@ -151,6 +178,15 @@ export async function processJob(payload: PipelineJobPayload): Promise<void> {
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`[job ${jobId}] failed:`, message);
+    
+    if (
+  job &&
+  upload &&
+  (payload.phase === "discover" || payload.phase === "transform")
+) {
+  await removeGeneratedVisual(supabase, upload, job);
+}
+    
     // Best-effort from here down — we're already in the failure path, so a
     // second failure just gets logged rather than thrown (nothing upstream
     // left to catch it, and throwing here would skip the workDir cleanup).
