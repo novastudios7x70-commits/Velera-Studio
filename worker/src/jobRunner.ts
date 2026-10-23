@@ -5,6 +5,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "./lib/supabase.js";
+import { env } from "./lib/env.js";
 import { transcribeAudio } from "./pipeline/transcribe.js";
 import { analyzeAudio } from "./pipeline/audioAnalysis.js";
 import { generateVisual, MAX_VISUAL_GENERATIONS_PER_JOB } from "./pipeline/generateVisuals.js";
@@ -115,24 +116,181 @@ async function setStatus(
   if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The only two shapes generated_visual_url/scene_visuals[].video_url are
+// ever written as (see the rehostPath construction above, in
+// runDiscoverPhase) — the main/group-0 visual and an additional scene-group
+// visual, always scoped under this exact user and this exact job. Anchored
+// full-string match (^...$), not a prefix check: a value that merely starts
+// with this job's own prefix but has an unexpected suffix (e.g. a
+// different extension, extra path segments, or a non-numeric/malformed
+// group id) is rejected just like a value that belongs to a different
+// user or job entirely.
+function isOwnGeneratedVisualPath(candidate: string, userId: string, jobId: string): boolean {
+  const pattern = new RegExp(`^${escapeRegExp(userId)}/generated/${escapeRegExp(jobId)}(?:-group-\\d+)?\\.mp4$`);
+  return pattern.test(candidate);
+}
+
+// generated_visual_url and scene_visuals[].video_url are written as bare
+// uploads-bucket object paths — both write sites (jobRunner.ts, the
+// `rehostPath` passed to the `generated_visual_url` update and into each
+// SceneVisual's video_url) derive from the same plain
+// `${user_id}/generated/${job.id}[-group-{n}].mp4` string, never a URL or
+// a getPublicUrl() result (confirmed by re-reading both write sites before
+// writing this). This is a defensive normalizer, not evidence a URL has
+// ever actually been stored: it exists so a future regression (e.g. a
+// getPublicUrl()-style write creeping into this path, as already happens
+// for the separate `clips` bucket) fails safely — rejected and logged —
+// rather than silently handing an unrelated string straight to
+// storage.remove(). Every candidate, bare path or URL-extracted path
+// alike, must pass isOwnGeneratedVisualPath — structural shape alone
+// (e.g. "looks like a path", "is a same-origin uploads-bucket URL") is
+// not sufficient on its own; it must be exactly this job's own object.
+// Only ever extracts a path when the URL explicitly names the `uploads`
+// bucket in Supabase Storage's own URL shape, confirmed against the
+// installed @supabase/storage-js SDK source (getPublicUrl/createSignedUrl/
+// download in node_modules/@supabase/storage-js): "public/" and "sign/"
+// are real prefixes; a plain private authenticated download has no extra
+// prefix segment at all (covered by the optional group matching nothing) —
+// there is no real "/object/authenticated/<bucket>/..." shape, so that
+// alternative has been removed rather than guessed at. Origin check (not
+// just path shape) is what makes this "belonging to this project's
+// uploads bucket" rather than "shaped like any Supabase Storage URL" —
+// env.supabaseUrl is guaranteed set by assertEnv() at worker startup
+// (index.ts) before any job is ever processed.
+function toUploadsObjectPath(value: string, userId: string, jobId: string): string | null {
+  if (!value) return null;
+
+  if (!value.includes("://")) {
+    if (!isOwnGeneratedVisualPath(value, userId, jobId)) {
+      console.error(`[job ${jobId}] rejected generated-visual path that isn't this job's own main/group video: ${value}`);
+      return null;
+    }
+    return value;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    console.error(`[job ${jobId}] rejected unparseable generated-visual URL: ${value}`);
+    return null;
+  }
+
+  try {
+    if (parsed.origin !== new URL(env.supabaseUrl).origin) {
+      console.error(`[job ${jobId}] rejected generated-visual URL from an unexpected origin: ${value}`);
+      return null;
+    }
+  } catch {
+    console.error(`[job ${jobId}] could not verify generated-visual URL origin (env.supabaseUrl unset/invalid) — rejecting: ${value}`);
+    return null;
+  }
+
+  const match = parsed.pathname.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?uploads\/([^?]+)/);
+  if (!match) {
+    console.error(`[job ${jobId}] rejected unrecognized generated-visual URL (not an uploads-bucket object): ${value}`);
+    return null;
+  }
+  const extracted = decodeURIComponent(match[1]);
+  if (!isOwnGeneratedVisualPath(extracted, userId, jobId)) {
+    console.error(`[job ${jobId}] rejected generated-visual URL whose object path isn't this job's own main/group video: ${value}`);
+    return null;
+  }
+  return extracted;
+}
+
+// Collects every generated-visual object path actually recorded on this
+// job — generated_visual_url (the primary/group-0 visual) and every
+// non-null scene_visuals[].video_url (additional scene-group visuals) —
+// deduplicated, since group 0's path is written identically into both
+// fields. Deliberately does not guess unrecorded group filenames: if a job
+// fails mid-generation-loop, after a later group's video was already
+// uploaded to Storage but before the single batched `scene_visuals` write
+// at the end of that loop runs, that group's path was never committed to
+// the database and cannot be recovered here — a known, pre-existing gap in
+// when scene_visuals is written (see runDiscoverPhase), not something this
+// cleanup step can close without changing that write timing, which is out
+// of scope for this fix.
+function collectGeneratedVisualPaths(upload: Upload, job: Job): string[] {
+  const paths = new Set<string>();
+
+  if (typeof job.generated_visual_url === "string" && job.generated_visual_url.length > 0) {
+    const normalized = toUploadsObjectPath(job.generated_visual_url, upload.user_id, job.id);
+    if (normalized) paths.add(normalized);
+  }
+
+  if (Array.isArray(job.scene_visuals)) {
+    for (const entry of job.scene_visuals) {
+      const videoUrl = entry && typeof entry === "object" ? (entry as SceneVisual).video_url : null;
+      if (typeof videoUrl === "string" && videoUrl.length > 0) {
+        const normalized = toUploadsObjectPath(videoUrl, upload.user_id, job.id);
+        if (normalized) paths.add(normalized);
+      }
+    }
+  }
+
+  return [...paths];
+}
+
+// Removes every generated-visual Storage object recorded on this specific
+// failed job (main visual + any additional scene-group visuals) — never
+// upload.file_url (the user's original source) or any TTS-rehosted audio,
+// neither of which this function ever reads. Scoped to generate-visual
+// jobs only; a no-op for "has footage" jobs, which have nothing to clean
+// up here. Never throws: a Storage error is logged, and any unexpected
+// error (e.g. malformed scene_visuals data this function didn't already
+// guard against) is caught and logged too, so a bug in this cleanup path
+// can never prevent the caller's failed-status update or credit refund.
+async function removeGeneratedVisuals(
+  supabase: SupabaseClient<Database>,
+  upload: Upload,
+  job: Job,
+): Promise<void> {
+  if (upload.visual_source !== "generate") return;
+
+  try {
+    const paths = collectGeneratedVisualPaths(upload, job);
+    if (paths.length === 0) return;
+
+    const { error } = await supabase.storage.from("uploads").remove(paths);
+    if (error) {
+      console.error(`[job ${job.id}] could not remove generated visual(s) (${paths.join(", ")}):`, error.message);
+    }
+  } catch (err) {
+    console.error(`[job ${job.id}] unexpected error while removing generated visual(s):`, err instanceof Error ? err.message : err);
+  }
+}
+
 export async function processJob(payload: PipelineJobPayload): Promise<void> {
   const jobId = payload.jobId;
   const supabase = createAdminClient();
   const workDir = await mkdtemp(path.join(tmpdir(), `velora-job-${jobId}-`));
 
+  // Hoisted above the try block (rather than left as try-scoped consts) so
+  // the catch block below can reach whichever of these were successfully
+  // fetched before the failure, to know what to clean up.
+  let job: Job | null = null;
+  let upload: Upload | null = null;
+
   try {
-    const { data: job, error: jobError } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+    const { data: fetchedJob, error: jobError } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+    job = fetchedJob;
     if (jobError || !job) {
       throw new Error(
         `Job ${jobId} not found: ${jobError?.message ?? "no row returned"} (code: ${jobError?.code ?? "n/a"})`,
       );
     }
 
-    const { data: upload, error: uploadError } = await supabase
+    const { data: fetchedUpload, error: uploadError } = await supabase
       .from("uploads")
       .select("*")
       .eq("id", job.upload_id)
       .single();
+    upload = fetchedUpload;
     if (uploadError || !upload) {
       throw new Error(
         `Upload for job ${jobId} not found: ${uploadError?.message ?? "no row returned"} (code: ${uploadError?.code ?? "n/a"})`,
@@ -156,6 +314,16 @@ export async function processJob(payload: PipelineJobPayload): Promise<void> {
     // Best-effort from here down — we're already in the failure path, so a
     // second failure just gets logged rather than thrown (nothing upstream
     // left to catch it, and throwing here would skip the workDir cleanup).
+    // Wrapped in its own try/catch (on top of removeGeneratedVisuals' own
+    // internal one) so a cleanup failure can never skip the failed-status
+    // update or credit refund immediately below, no matter what.
+    try {
+      if (job && upload && (payload.phase === "discover" || payload.phase === "transform")) {
+        await removeGeneratedVisuals(supabase, upload, job);
+      }
+    } catch (cleanupErr) {
+      console.error(`[job ${jobId}] generated-visual cleanup threw unexpectedly:`, cleanupErr instanceof Error ? cleanupErr.message : cleanupErr);
+    }
     const { error: failStatusError } = await supabase
       .from("jobs")
       .update({ status: "failed", error_message: message.slice(0, 2000) })
