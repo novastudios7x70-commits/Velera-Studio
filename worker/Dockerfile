@@ -19,6 +19,7 @@ COPY requirements.txt ./
 RUN pip3 install --break-system-packages --no-cache-dir -r requirements.txt
 
 COPY tsconfig.json ./
+COPY tsconfig.build.json ./
 COPY src ./src
 COPY scripts ./scripts
 RUN npm install --include=dev && npm run build && npm prune --omit=dev
