@@ -38,6 +38,13 @@ const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as cons
 // doesn't need to natively cover the whole window either.
 const GENERATED_VISUAL_MAX_SECONDS = 45;
 
+// How long to wait before the one allowed retry of the failure-path job
+// re-fetch (see fetchLatestJobForCleanup) — short, since this already runs
+// after the original failure and shouldn't meaningfully delay marking the
+// job failed/refunding credit; long enough to ride out a brief DB/network
+// blip rather than a sustained outage.
+const CLEANUP_REFETCH_RETRY_DELAY_MS = 500;
+
 interface SourceProbe {
   duration: number;
   hasAudioStream: boolean;
@@ -116,7 +123,7 @@ async function setStatus(
   if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
-function escapeRegExp(value: string): string {
+export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
@@ -129,7 +136,7 @@ function escapeRegExp(value: string): string {
 // different extension, extra path segments, or a non-numeric/malformed
 // group id) is rejected just like a value that belongs to a different
 // user or job entirely.
-function isOwnGeneratedVisualPath(candidate: string, userId: string, jobId: string): boolean {
+export function isOwnGeneratedVisualPath(candidate: string, userId: string, jobId: string): boolean {
   const pattern = new RegExp(`^${escapeRegExp(userId)}/generated/${escapeRegExp(jobId)}(?:-group-\\d+)?\\.mp4$`);
   return pattern.test(candidate);
 }
@@ -161,7 +168,7 @@ function isOwnGeneratedVisualPath(candidate: string, userId: string, jobId: stri
 // uploads bucket" rather than "shaped like any Supabase Storage URL" —
 // env.supabaseUrl is guaranteed set by assertEnv() at worker startup
 // (index.ts) before any job is ever processed.
-function toUploadsObjectPath(value: string, userId: string, jobId: string): string | null {
+export function toUploadsObjectPath(value: string, userId: string, jobId: string): string | null {
   if (!value) return null;
 
   if (!value.includes("://")) {
@@ -207,15 +214,26 @@ function toUploadsObjectPath(value: string, userId: string, jobId: string): stri
 // job — generated_visual_url (the primary/group-0 visual) and every
 // non-null scene_visuals[].video_url (additional scene-group visuals) —
 // deduplicated, since group 0's path is written identically into both
-// fields. Deliberately does not guess unrecorded group filenames: if a job
-// fails mid-generation-loop, after a later group's video was already
-// uploaded to Storage but before the single batched `scene_visuals` write
-// at the end of that loop runs, that group's path was never committed to
-// the database and cannot be recovered here — a known, pre-existing gap in
-// when scene_visuals is written (see runDiscoverPhase), not something this
-// cleanup step can close without changing that write timing, which is out
-// of scope for this fix.
-function collectGeneratedVisualPaths(upload: Upload, job: Job): string[] {
+// fields. Deliberately does not guess unrecorded group filenames: reads
+// only what the database says was persisted, never what "should" exist
+// given a group's position in the plan. generated_visual_url and each
+// group's scene_visuals entry are now written to the database immediately
+// after that group's own upload succeeds (see runDiscoverPhase), not
+// batched until the end of the generation loop, so a path survives here as
+// long as its own group finished uploading before the job failed. The one
+// path this still cannot recover: a group whose Storage upload SUCCEEDED
+// but whose own scene_visuals write (or, for group 0, its
+// generated_visual_url write) then failed — the video exists in Storage,
+// but nothing was ever committed to point at it, so there is nothing to
+// read back for it here, by construction. (A group whose Storage upload
+// itself fails creates no orphan at all — genUploadError is checked and
+// throws before anything is written to either Storage or the database, so
+// there is nothing left behind to clean up for that group.) This remaining
+// gap is not solved by this function or its callers; it is a known,
+// disclosed limitation. Callers must also pass the job row as it exists
+// *after* the failure, not a pre-phase snapshot — see processJob's catch
+// block, which re-fetches the row for exactly this reason.
+export function collectGeneratedVisualPaths(upload: Upload, job: Job): string[] {
   const paths = new Set<string>();
 
   if (typeof job.generated_visual_url === "string" && job.generated_visual_url.length > 0) {
@@ -245,7 +263,7 @@ function collectGeneratedVisualPaths(upload: Upload, job: Job): string[] {
 // error (e.g. malformed scene_visuals data this function didn't already
 // guard against) is caught and logged too, so a bug in this cleanup path
 // can never prevent the caller's failed-status update or credit refund.
-async function removeGeneratedVisuals(
+export async function removeGeneratedVisuals(
   supabase: SupabaseClient<Database>,
   upload: Upload,
   job: Job,
@@ -263,6 +281,39 @@ async function removeGeneratedVisuals(
   } catch (err) {
     console.error(`[job ${job.id}] unexpected error while removing generated visual(s):`, err instanceof Error ? err.message : err);
   }
+}
+
+// Re-fetches the job row for the failure-path cleanup in processJob's catch
+// block below — scoped to exactly that one call site, not a general-purpose
+// retry utility. At most one retry, after CLEANUP_REFETCH_RETRY_DELAY_MS,
+// absorbs a brief DB/network blip (which, notably, isn't fully independent
+// of whatever just failed the job itself) without meaningfully delaying the
+// failed-status update/credit refund that follow. Handles both a returned
+// Supabase error/no-row result and an actual thrown exception identically
+// (each attempt has its own try/catch), since a thrown exception bypassing
+// an inline `if (error || !data)` check — unlike one — would otherwise skip
+// the retry entirely. Returns null (never the stale pre-phase job) if both
+// attempts fail, so the caller decides what "no fresh data" means rather
+// than this function silently substituting something it was never asked
+// for.
+export async function fetchLatestJobForCleanup(supabase: SupabaseClient<Database>, jobId: string): Promise<Job | null> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { data, error } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+      if (!error && data) return data;
+      console.error(
+        `[job ${jobId}] cleanup job re-fetch attempt ${attempt}/2 did not return the row: ${error?.message ?? "no row returned"}`,
+      );
+    } catch (err) {
+      console.error(
+        `[job ${jobId}] cleanup job re-fetch attempt ${attempt}/2 threw: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+    if (attempt === 1) {
+      await new Promise((resolve) => setTimeout(resolve, CLEANUP_REFETCH_RETRY_DELAY_MS));
+    }
+  }
+  return null;
 }
 
 export async function processJob(payload: PipelineJobPayload): Promise<void> {
@@ -319,7 +370,32 @@ export async function processJob(payload: PipelineJobPayload): Promise<void> {
     // update or credit refund immediately below, no matter what.
     try {
       if (job && upload && (payload.phase === "discover" || payload.phase === "transform")) {
-        await removeGeneratedVisuals(supabase, upload, job);
+        // `job` was fetched before the phase ran and is never updated in
+        // place — runDiscoverPhase's generated_visual_url/scene_visuals
+        // writes go straight to the database, not back into this object —
+        // so using it directly here would make removeGeneratedVisuals look
+        // for paths that were never there to begin with, missing exactly
+        // the visuals a failure after a successful generation actually
+        // left in Storage. Re-fetch the row (with one bounded retry — see
+        // fetchLatestJobForCleanup) so cleanup sees whatever was actually
+        // persisted before the failure.
+        const latestJob = await fetchLatestJobForCleanup(supabase, jobId);
+        if (!latestJob) {
+          // Both attempts failed. Falling back to `job` is the safest
+          // remaining option — it can only miss paths persisted after it
+          // was taken, never invent ones that don't belong to this job,
+          // since isOwnGeneratedVisualPath's ownership check is unaffected
+          // either way — but it is NOT a guarantee anything will be found:
+          // `job` is whatever existed before this phase ran, most often
+          // nothing at all. Tagged distinctly so this degraded path (DB
+          // unreachable right when cleanup needed it most) can be
+          // alerted on or reconciled against Storage directly, rather than
+          // reading as an ordinary "nothing to clean up" no-op.
+          console.error(
+            `[job ${jobId}] [orphan-risk] could not refresh job after 2 attempts before generated-visual cleanup — attempting cleanup with only the pre-phase snapshot already in hand, which may be incomplete or empty.`,
+          );
+        }
+        await removeGeneratedVisuals(supabase, upload, latestJob ?? job);
       }
     } catch (cleanupErr) {
       console.error(`[job ${jobId}] generated-visual cleanup threw unexpectedly:`, cleanupErr instanceof Error ? cleanupErr.message : cleanupErr);
@@ -556,6 +632,18 @@ async function runDiscoverPhase(
             error_message: null,
           };
         }
+
+        // Persisted once per completed group, not batched until after the
+        // whole loop — the same immediacy generated_visual_url already has
+        // below. A later group's generation/upload can still throw and
+        // abort the loop; writing here means THIS group's video_url is
+        // already durable before that happens, so the failure-path cleanup
+        // (removeGeneratedVisuals, via its now-freshly-refetched job row)
+        // can actually find and remove it instead of only ever learning
+        // about it from a final write that a later failure prevented from
+        // ever running.
+        const { error: sceneVisualsError } = await supabase.from("jobs").update({ scene_visuals: sceneVisuals }).eq("id", job.id);
+        if (sceneVisualsError) throw new Error(`Failed to save scene visuals: ${sceneVisualsError.message}`);
       }
 
       if (isPrimaryGroup) {
@@ -564,11 +652,6 @@ async function runDiscoverPhase(
         const { error: genUrlError } = await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
         if (genUrlError) throw new Error(`Failed to save generated_visual_url: ${genUrlError.message}`);
       }
-    }
-
-    if (sceneVisuals) {
-      const { error: sceneVisualsError } = await supabase.from("jobs").update({ scene_visuals: sceneVisuals }).eq("id", job.id);
-      if (sceneVisualsError) throw new Error(`Failed to save scene visuals: ${sceneVisualsError.message}`);
     }
   }
 
