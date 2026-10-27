@@ -114,6 +114,41 @@ export type SelectedSegment = {
   why?: string; // Claude-generated "why this was surfaced," grounded in this segment's own transcript excerpt + hook_type
 };
 
+// One visual beat/shot of a script-driven generate-video scene plan (see
+// worker/src/pipeline/scenePlanner.ts) — the canonical type lives here,
+// same relationship as SelectedSegment above: scenePlanner.ts imports this
+// type and keeps only its Zod validation schema (which validates the LLM's
+// raw response against this shape) locally, so the stored/typed shape and
+// the pipeline that produces it can never silently diverge.
+//
+// Deliberately excludes timing (assigned later from the real voiceover
+// transcript, not the planner), a final visual_prompt (synthesized later
+// from these fields, not asked of the LLM directly), and any
+// character-reference/consistency fields (out of scope for the MVP).
+export type Scene = {
+  description: string;
+  characters: string[];
+  setting: string;
+  action: string;
+  shot_type: "establishing" | "wide" | "medium" | "two_shot" | "close_up" | "tracking";
+  camera_motion: string;
+};
+
+// One visual-generation group's result for the script-driven generate-video
+// path (see worker/src/pipeline/sceneGrouping.ts) — kept separate from Scene
+// by design: Scene is what the planner says should happen, SceneVisual is
+// what was actually generated. group_id is the sceneGrouping.ts group this
+// entry's scene belongs to; array position corresponds to the scene's own
+// position in scene_plan, same convention as Scene itself — no redundant
+// scene index field.
+export type SceneVisual = {
+  group_id: number;
+  status: "pending" | "completed" | "failed";
+  video_url: string | null;
+  generated_duration_seconds: number | null;
+  error_message?: string | null;
+};
+
 export type Job = {
   id: string;
   upload_id: string;
@@ -124,9 +159,27 @@ export type Job = {
   generated_visual_url: string | null;
   selected_segments: SelectedSegment[] | null;
   confirmed_segment_indices: number[] | null;
+  scene_plan: Scene[] | null;
+  scene_visuals: SceneVisual[] | null;
   error_message: string | null;
+  // Added by 0022_job_reconciliation.sql — see worker/src/lib/database.types.ts's
+  // copy of this comment for the full rationale (worker/src/reconcile.ts
+  // is where these are actually used; this copy exists only so this
+  // hand-maintained type stays accurate to the live schema).
+  reservation_refunded_at: string | null;
+  reconciled_at: string | null;
+  reconciliation_refund_pending_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// Internal migration metadata, added by 0022_job_reconciliation.sql — see
+// worker/src/lib/database.types.ts's copy of this comment. Unused by
+// anything in src/; present only so this hand-maintained type stays
+// accurate to the live schema.
+export type MigrationActivation = {
+  migration: string;
+  activated_at: string;
 };
 
 export type Clip = {
@@ -197,12 +250,24 @@ export type Database = {
         Update: Partial<Lead>;
         Relationships: [];
       };
+      migration_activations: {
+        Row: MigrationActivation;
+        Insert: Partial<MigrationActivation> & Pick<MigrationActivation, "migration">;
+        Update: Partial<MigrationActivation>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       create_job: { Args: { p_upload_id: string }; Returns: Job };
       claim_clip_credit: { Args: { p_user_id: string; p_generated: boolean }; Returns: boolean };
-      refund_job_reservation: { Args: { p_job_id: string }; Returns: undefined };
+      // Returns boolean as of 0022_job_reconciliation.sql — see
+      // worker/src/lib/database.types.ts's copy of this comment.
+      refund_job_reservation: { Args: { p_job_id: string }; Returns: boolean };
+      claim_upload_for_storage_cleanup: {
+        Args: { p_upload_id: string };
+        Returns: boolean;
+      };
       apply_reclip: {
         Args: {
           p_vertical_clip_ids: string[];

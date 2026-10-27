@@ -99,7 +99,22 @@ export async function logInAction(
         error: "Please confirm your email first — check your inbox for the link we sent when you signed up.",
       };
     }
-    return { error: "Incorrect email or password." };
+    // Only a real GoTrue "invalid_credentials" response (or the legacy
+    // pre-error-code message text Supabase used before structured codes
+    // existed) means the password was actually wrong — see the Storage/
+    // auth error-masking audit. Everything else (rate limiting, 5xx,
+    // network failure, a paused/quota-restricted project, or any other
+    // unrecognized error) has no dedicated code to check for, so treating
+    // it as "wrong password" by default was the bug being fixed here.
+    if (error.code === "invalid_credentials" || /invalid login credentials/i.test(error.message)) {
+      return { error: "Incorrect email or password." };
+    }
+    // Logged with only non-sensitive error metadata — never email,
+    // password, or any token/session value (no session exists on a failed
+    // sign-in anyway) — so there's an operational signal for a real outage
+    // without putting secrets in logs.
+    console.error(`[auth] signInWithPassword failed: name=${error.name} code=${error.code ?? "n/a"} status=${error.status ?? "n/a"}`);
+    return { error: "We couldn't log you in right now — please try again in a moment." };
   }
 
   revalidatePath("/", "layout");

@@ -44,7 +44,14 @@ const bodySchema = z
         ? !!data.file_path && !!data.file_name
         : !!data.script_text && !!data.tts_voice_id,
     { message: "Missing required fields for the selected audio source." },
-  );
+  )
+  // A TTS (written-script) upload has no footage of its own — file_url is
+  // always null for it (see the insert below) — so it can never be paired
+  // with visual_source "has": the worker would have no video to pull frames
+  // or clips from. TTS scripts always pair with generated visuals.
+  .refine((data) => !(data.audio_source === "tts" && data.visual_source === "has"), {
+    message: "A written script must use generated visuals — it has no footage of its own.",
+  });
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -131,6 +138,72 @@ export async function POST(request: Request) {
     .single();
 
   if (uploadError || !upload) {
+    // Compensate for the browser having already uploaded the source file
+    // (for audio_source: "upload") before this insert ran — see the Storage
+    // lifecycle audit. A returned uploadError does NOT prove the insert
+    // never committed (a network blip after a successful write looks
+    // identical to the client), so first resolve which upload row, if any,
+    // actually exists for this exact path — this lookup only identifies a
+    // row to pass to the RPC below; it never decides whether to delete.
+    // claim_upload_for_storage_cleanup() (0021_upload_cleanup_claim.sql) is
+    // the actual synchronization primitive: it locks that row, checks no
+    // job references it, and durably marks it claimed in one atomic
+    // transaction — create_job() takes the same lock and refuses once a
+    // claim exists, so a `true` result here is a permanent guarantee, not a
+    // point-in-time snapshot a race could invalidate before the Storage
+    // delete runs. Only `true` means safe to delete; a `false` result or
+    // the RPC call itself erroring leaves the object in place for later
+    // scheduled cleanup rather than risk deleting something a concurrent
+    // request now depends on. A cleanup failure is logged but never changes
+    // the response: the original "could not save upload" error always wins.
+    if (body.audio_source === "upload" && body.file_path) {
+      const { data: possibleRows, error: lookupError } = await supabase
+        .from("uploads")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("file_url", body.file_path)
+        .limit(1);
+
+      if (lookupError) {
+        console.error(
+          `[api/jobs] Could not look up uploads-row state before Storage cleanup for user=${user.id} path=${body.file_path}:`,
+          lookupError,
+        );
+      } else if (possibleRows && possibleRows.length > 0) {
+        const existingUploadId = possibleRows[0].id;
+        const { data: claimed, error: claimError } = await supabase.rpc("claim_upload_for_storage_cleanup", {
+          p_upload_id: existingUploadId,
+        });
+
+        if (claimError) {
+          console.error(
+            `[api/jobs] claim_upload_for_storage_cleanup failed for upload=${existingUploadId} path=${body.file_path}:`,
+            claimError,
+          );
+        } else if (claimed === true) {
+          const { error: cleanupError } = await supabase.storage.from("uploads").remove([body.file_path]);
+          if (cleanupError) {
+            console.error(
+              `[api/jobs] Storage cleanup failed after uploads-insert error for user=${user.id} path=${body.file_path}:`,
+              cleanupError,
+            );
+          }
+        }
+      } else {
+        // No row exists at this point in time — but that's only a
+        // point-in-time observation, not a guarantee: another request could
+        // insert an uploads row for this exact file_path immediately after
+        // this lookup and go on to create a job referencing it before this
+        // request reaches the Storage delete below. There's no upload row
+        // yet for claim_upload_for_storage_cleanup() to lock, so nothing can
+        // synchronize against that race — leave the object in place for
+        // later scheduled/orphan cleanup rather than risk deleting out from
+        // under a request that hasn't happened yet.
+        console.error(
+          `[api/jobs] No uploads row found for user=${user.id} path=${body.file_path} after an insert error — leaving Storage object for scheduled cleanup.`,
+        );
+      }
+    }
     return NextResponse.json({ error: "Could not save upload." }, { status: 500 });
   }
 
@@ -143,13 +216,103 @@ export async function POST(request: Request) {
     const message = jobError?.message?.includes("remaining") || jobError?.message?.includes("allowance")
       ? "You're out of clip credits on your current plan."
       : "Could not start this job.";
+
+    // Compensate for create_job() failing after the uploads row (and, for
+    // audio_source: "upload", its already-uploaded Storage object) was
+    // already recorded — see the Storage lifecycle audit.
+    // claim_upload_for_storage_cleanup() (0021_upload_cleanup_claim.sql) is
+    // the synchronization primitive: it locks this upload row, checks no
+    // job references it, and durably marks it claimed in one atomic
+    // transaction — create_job() takes the same lock and refuses once a
+    // claim exists, so a `true` result here is a permanent guarantee, not a
+    // point-in-time snapshot a race could invalidate before the Storage
+    // delete below runs. create_job() raises before reserving any credit on
+    // every failure path (confirmed in 0016_subscription_status_gating.sql),
+    // so there is nothing to refund here regardless of the claim's outcome.
+    // A cleanup failure (or the RPC call itself failing) is logged but
+    // never changes the response: the original job-creation error always wins.
+    if (upload.file_url) {
+      const { data: claimed, error: claimError } = await supabase.rpc("claim_upload_for_storage_cleanup", {
+        p_upload_id: upload.id,
+      });
+
+      if (claimError) {
+        console.error(`[api/jobs] claim_upload_for_storage_cleanup failed for upload=${upload.id}:`, claimError);
+      } else if (claimed === true) {
+        const { error: cleanupError } = await supabase.storage.from("uploads").remove([upload.file_url]);
+        if (cleanupError) {
+          console.error(
+            `[api/jobs] Storage cleanup failed after create_job error for upload=${upload.id} path=${upload.file_url}:`,
+            cleanupError,
+          );
+        }
+      }
+    }
+
     return NextResponse.json({ error: message }, { status: 402 });
   }
 
   // 3. Hand off to the worker via the queue — processing never happens inline.
   // "discover" phase: analyze + select candidate moments, then stop at
   // awaiting_selection for the user to act on (see /api/jobs/[id]/confirm-selection).
-  await getPipelineQueue().add("process-job", { jobId: job.id, phase: "discover" }, { jobId: job.id });
+  try {
+    await getPipelineQueue().add("process-job", { jobId: job.id, phase: "discover" }, { jobId: job.id });
+  } catch (enqueueError) {
+    console.error(`[api/jobs] enqueue failed for job=${job.id}:`, enqueueError);
+
+    // create_job() already committed the row and reserved a credit before
+    // this point — an enqueue failure here must not leave either stuck.
+    // Conditional on status still being 'queued' (never unconditional):
+    // a timeout/network error on this call doesn't prove Redis never got
+    // the job — if the worker already picked it up and advanced the
+    // status, this WHERE clause simply matches nothing, and we must not
+    // overwrite real progress or refund a job that's actually running
+    // (see worker/src/jobRunner.ts's isAlreadyFailedJob guard, which
+    // exists specifically to catch the inverse of this race).
+    const { data: compensated, error: compensateError } = await supabase
+      .from("jobs")
+      .update({
+        status: "failed",
+        error_message: "Could not start processing — please try again.",
+      })
+      .eq("id", job.id)
+      .eq("status", "queued")
+      .select("id");
+
+    if (compensateError) {
+      // Could not even attempt the compensation — the job's real state is
+      // now unknown (it may be genuinely stuck 'queued' with no worker
+      // ever coming, or it may have advanced fine). Never report this as
+      // success: an unresolvable compensation attempt must not silently
+      // fall through to the 201 response below.
+      console.error(`[api/jobs] compensation update failed for job=${job.id}:`, compensateError);
+      return NextResponse.json({ error: "Could not start this job — please try again." }, { status: 500 });
+    } else if (compensated && compensated.length > 0) {
+      // The conditional update matched — the job was genuinely still
+      // 'queued', so the enqueue really did fail and it's now safe to
+      // refund. refund_job_reservation() is idempotent (0022), so even if
+      // this call itself fails, no double-refund risk exists on a retry —
+      // but a failure here must not be reported as if the enqueue
+      // succeeded, and must not silently claim the refund happened.
+      const { data: refunded, error: refundError } = await supabase.rpc("refund_job_reservation", {
+        p_job_id: job.id,
+      });
+      if (refundError) {
+        console.error(`[api/jobs] refund_job_reservation failed for job=${job.id} after enqueue failure:`, refundError);
+      } else if (refunded !== true) {
+        console.error(`[api/jobs] refund_job_reservation returned false for job=${job.id} — already refunded?`);
+      }
+      return NextResponse.json({ error: "Could not start this job — please try again." }, { status: 500 });
+    } else {
+      // The update matched zero rows: the job is no longer 'queued', which
+      // means the worker already picked it up — the enqueue evidently
+      // succeeded despite this request-side failure. Do not refund (there
+      // is nothing to refund) and do not tell the customer it failed.
+      console.error(
+        `[api/jobs] enqueue appeared to fail for job=${job.id} but the job already advanced past 'queued' — treating as a successful enqueue.`,
+      );
+    }
+  }
 
   return NextResponse.json({ job }, { status: 201 });
 }

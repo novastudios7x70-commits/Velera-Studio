@@ -114,6 +114,41 @@ export type SelectedSegment = {
   why?: string; // Claude-generated "why this was surfaced," grounded in this segment's own transcript excerpt + hook_type
 };
 
+// One visual beat/shot of a script-driven generate-video scene plan (see
+// worker/src/pipeline/scenePlanner.ts) — the canonical type lives here,
+// same relationship as SelectedSegment above: scenePlanner.ts imports this
+// type and keeps only its Zod validation schema (which validates the LLM's
+// raw response against this shape) locally, so the stored/typed shape and
+// the pipeline that produces it can never silently diverge.
+//
+// Deliberately excludes timing (assigned later from the real voiceover
+// transcript, not the planner), a final visual_prompt (synthesized later
+// from these fields, not asked of the LLM directly), and any
+// character-reference/consistency fields (out of scope for the MVP).
+export type Scene = {
+  description: string;
+  characters: string[];
+  setting: string;
+  action: string;
+  shot_type: "establishing" | "wide" | "medium" | "two_shot" | "close_up" | "tracking";
+  camera_motion: string;
+};
+
+// One visual-generation group's result for the script-driven generate-video
+// path (see worker/src/pipeline/sceneGrouping.ts) — kept separate from Scene
+// by design: Scene is what the planner says should happen, SceneVisual is
+// what was actually generated. group_id is the sceneGrouping.ts group this
+// entry's scene belongs to; array position corresponds to the scene's own
+// position in scene_plan, same convention as Scene itself — no redundant
+// scene index field.
+export type SceneVisual = {
+  group_id: number;
+  status: "pending" | "completed" | "failed";
+  video_url: string | null;
+  generated_duration_seconds: number | null;
+  error_message?: string | null;
+};
+
 export type Job = {
   id: string;
   upload_id: string;
@@ -124,7 +159,27 @@ export type Job = {
   generated_visual_url: string | null;
   selected_segments: SelectedSegment[] | null;
   confirmed_segment_indices: number[] | null;
+  scene_plan: Scene[] | null;
+  scene_visuals: SceneVisual[] | null;
   error_message: string | null;
+  // Added by 0022_job_reconciliation.sql. reservation_refunded_at is the
+  // idempotency claim refund_job_reservation() uses — null means "not yet
+  // refunded under this mechanism," never proof either way for a job
+  // created before this column existed (see reconcile.ts's historical
+  // cutoff, read from the migration_activations table below, not a
+  // hardcoded date). reconciled_at marks that the automated stale-job
+  // reconciler claimed this row — distinct from reservation_refunded_at,
+  // since the claim and the refund are two separate steps that can't
+  // share one transaction (see reconcile.ts). reconciliation_refund_pending_at
+  // is a third, deliberately separate marker: set only while the
+  // reconciler's own claim has landed but its refund hasn't yet been
+  // confirmed, cleared once it is — never set or read by anything except
+  // reconcile.ts, so it can never be confused with reconciled_at being
+  // set for some other, future reason, or with an ordinary worker-driven
+  // failure (which never touches either of these two columns).
+  reservation_refunded_at: string | null;
+  reconciled_at: string | null;
+  reconciliation_refund_pending_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -149,6 +204,15 @@ export type Clip = {
   render_started_at: string | null; // set while a re-render is in flight; cleared on success or failure
   render_failed_at: string | null; // set only by a worker-side reclip failure; cleared when a new attempt starts or succeeds
   created_at: string;
+};
+
+// Internal migration metadata, added by 0022_job_reconciliation.sql — one
+// row per migration that records the real instant it actually ran. Not
+// exposed to any role via RLS/PostgREST; read only by reconcile.ts's
+// getMigrationCutoff() via the service-role client, which bypasses RLS.
+export type MigrationActivation = {
+  migration: string;
+  activated_at: string;
 };
 
 export type Database = {
@@ -182,12 +246,27 @@ export type Database = {
           { foreignKeyName: "clips_job_id_fkey"; columns: ["job_id"]; referencedRelation: "jobs"; referencedColumns: ["id"] },
         ];
       };
+      migration_activations: {
+        Row: MigrationActivation;
+        Insert: Partial<MigrationActivation> & Pick<MigrationActivation, "migration">;
+        Update: Partial<MigrationActivation>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       create_job: { Args: { p_upload_id: string }; Returns: Job };
       claim_clip_credit: { Args: { p_user_id: string; p_generated: boolean }; Returns: boolean };
-      refund_job_reservation: { Args: { p_job_id: string }; Returns: undefined };
+      // Returns boolean as of 0022_job_reconciliation.sql — true on a
+      // successful first-time refund, false if already refunded (or the
+      // job doesn't exist); raises (rather than returning anything) if
+      // the job's upload/profile can't be resolved, per the idempotent
+      // claim-and-refund invariant documented in that migration.
+      refund_job_reservation: { Args: { p_job_id: string }; Returns: boolean };
+      claim_upload_for_storage_cleanup: {
+        Args: { p_upload_id: string };
+        Returns: boolean;
+      };
       apply_reclip: {
         Args: {
           p_vertical_clip_ids: string[];

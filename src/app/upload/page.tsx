@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
-  ArrowLeft, Music, Mic, Film, Wand2, Upload as UploadIcon, Loader2, FileText,
+  ArrowLeft, Music, Film, Wand2, Upload as UploadIcon, Loader2, FileText,
 } from "lucide-react";
 import { StepPill } from "@/components/ui/StepPill";
 import { PrimaryButton, GhostButton } from "@/components/ui/Button";
@@ -25,9 +25,20 @@ interface Voice {
   name: string;
 }
 
+// The Create flow is organized around what the user wants to make, not
+// around audio_source/visual_source as independent questions — asking them
+// independently used to let "Write a script" (audio_source: tts, which has
+// no footage of its own — file_url is always null for it) pair with "I have
+// footage" (visual_source: has), a combination the worker can't render
+// (there's no video to pull frames or clips from). Each intent below fixes
+// (or, for "music", offers a single meaningful sub-choice of) content_type
+// and visual_source so that invalid pairing can no longer be constructed.
+type Intent = "generate" | "footage" | "music";
+
 export default function UploadPage() {
   const router = useRouter();
   const { showToast } = useToast();
+  const [intent, setIntent] = useState<Intent | null>(null);
   const [contentType, setContentType] = useState<ContentType | null>(null);
   const [visualSource, setVisualSource] = useState<VisualSource | null>(null);
   const [audioSource, setAudioSource] = useState<AudioSource>("upload");
@@ -46,7 +57,28 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const canContinue = !!contentType && !!visualSource;
+  // Sets content_type/visual_source/audio_source together per intent, so
+  // they can never drift into an invalid combination — "footage" always
+  // stays audio_source: upload (TTS is never offered there), and "generate"
+  // always stays visual_source: generate (footage is never offered there).
+  const selectIntent = (next: Intent) => {
+    setIntent(next);
+    if (next === "generate") {
+      setContentType("spoken");
+      setVisualSource("generate");
+      setAudioSource("upload");
+    } else if (next === "footage") {
+      setContentType("spoken");
+      setVisualSource("has");
+      setAudioSource("upload");
+    } else {
+      setContentType("music");
+      setVisualSource("has");
+      setAudioSource("upload");
+    }
+  };
+
+  const canContinue = !!intent;
   const canSubmit = audioSource === "upload" ? !!file : !!script.trim() && !!ttsVoiceId;
 
   useEffect(() => {
@@ -172,57 +204,41 @@ export default function UploadPage() {
 
       <div className="mb-10">
         <div className="flex items-center gap-2 mb-1">
-          <StepPill n={1} label="Content" active={!contentType} done={!!contentType} />
+          <StepPill n={1} label="What to make" active={!intent} done={!!intent} />
           <div className="w-5 h-px bg-line" />
-          <StepPill n={2} label="Visuals" active={!!contentType && !visualSource} done={!!visualSource} />
-          <div className="w-5 h-px bg-line" />
-          <StepPill n={3} label="Upload" active={canContinue} done={false} />
+          <StepPill n={2} label="Details" active={canContinue} done={false} />
         </div>
       </div>
 
-      {!contentType && (
+      {!intent && (
         <div>
           <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[22px] text-text">
-            What are you posting?
+            What do you want to make?
           </TextEffect>
           <p className="mb-6 text-muted text-[14px]">This decides how Velora Studio reads your upload.</p>
-          <AnimatedGroup preset="blur-slide" className="grid grid-cols-2 gap-3">
-            <button onClick={() => setContentType("music")} className="nova-card nova-card-select rounded-lg p-5 text-left">
-              <Music size={20} className="text-text mb-3" />
-              <div className="nova-display font-medium text-[15px] text-text">Music</div>
-              <div className="text-[12.5px] text-muted mt-0.5">A song or track</div>
-            </button>
-            <button onClick={() => setContentType("spoken")} className="nova-card nova-card-select rounded-lg p-5 text-left">
-              <Mic size={20} className="text-text mb-3" />
-              <div className="nova-display font-medium text-[15px] text-text">Talking / spoken</div>
-              <div className="text-[12.5px] text-muted mt-0.5">Voiceover, podcast, script</div>
-            </button>
-          </AnimatedGroup>
-        </div>
-      )}
-
-      {contentType && !visualSource && (
-        <div>
-          <TextEffect as="h1" per="word" preset="fade-in-blur" className="nova-display font-semibold mb-1 text-[22px] text-text">
-            Do you have footage?
-          </TextEffect>
-          <p className="mb-6 text-muted text-[14px]">No camera, no footage, no problem — Velora Studio can build visuals for you.</p>
-          <AnimatedGroup preset="blur-slide" className="grid grid-cols-2 gap-3">
-            <button onClick={() => setVisualSource("has")} className="nova-card nova-card-select rounded-lg p-5 text-left">
-              <Film size={20} className="text-text mb-3" />
-              <div className="nova-display font-medium text-[15px] text-text">I have footage</div>
-              <div className="text-[12.5px] text-muted mt-0.5">Edit and reformat what I upload</div>
-            </button>
+          <AnimatedGroup preset="blur-slide" className="flex flex-col gap-3">
             <button
-              onClick={() => GENERATE_VISUALS_ENABLED && setVisualSource("generate")}
+              onClick={() => GENERATE_VISUALS_ENABLED && selectIntent("generate")}
               disabled={!GENERATE_VISUALS_ENABLED}
               className="nova-card nova-card-select rounded-lg p-5 text-left disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <Wand2 size={20} className="text-text mb-3" />
-              <div className="nova-display font-medium text-[15px] text-text">Generate for me</div>
+              <div className="nova-display font-medium text-[15px] text-text">Generate a video</div>
               <div className="text-[12.5px] text-muted mt-0.5">
-                {GENERATE_VISUALS_ENABLED ? "Build visuals that match the mood" : "Temporarily unavailable"}
+                {GENERATE_VISUALS_ENABLED
+                  ? "No camera, no footage, no problem — write a script or upload a recording and Velora builds the visuals"
+                  : "Temporarily unavailable"}
               </div>
+            </button>
+            <button onClick={() => selectIntent("footage")} className="nova-card nova-card-select rounded-lg p-5 text-left">
+              <Film size={20} className="text-text mb-3" />
+              <div className="nova-display font-medium text-[15px] text-text">Turn my footage into clips</div>
+              <div className="text-[12.5px] text-muted mt-0.5">Edit and reformat a video you already have</div>
+            </button>
+            <button onClick={() => selectIntent("music")} className="nova-card nova-card-select rounded-lg p-5 text-left">
+              <Music size={20} className="text-text mb-3" />
+              <div className="nova-display font-medium text-[15px] text-text">Make a music video</div>
+              <div className="text-[12.5px] text-muted mt-0.5">Upload a track, then use your own footage or generated visuals</div>
             </button>
           </AnimatedGroup>
         </div>
@@ -241,7 +257,7 @@ export default function UploadPage() {
                 : "We'll pull the best moments straight from this."}
           </p>
 
-          {contentType === "spoken" && TTS_ENABLED && (
+          {intent === "generate" && TTS_ENABLED && (
             <div className="grid grid-cols-2 gap-2 mb-5 p-1 rounded-xl border border-line">
               {(["upload", "tts"] as const).map((s) => (
                 <button
@@ -256,6 +272,32 @@ export default function UploadPage() {
                   {s === "upload" ? "Upload a recording" : "Write a script"}
                 </button>
               ))}
+            </div>
+          )}
+
+          {intent === "music" && (
+            <div className="grid grid-cols-2 gap-2 mb-5 p-1 rounded-xl border border-line">
+              <button
+                onClick={() => setVisualSource("has")}
+                className="rounded-lg py-2 text-[13px] nova-display font-medium transition-colors"
+                style={{
+                  background: visualSource === "has" ? "var(--elevated)" : "transparent",
+                  color: visualSource === "has" ? "var(--text)" : "var(--muted)",
+                }}
+              >
+                I have footage
+              </button>
+              <button
+                onClick={() => GENERATE_VISUALS_ENABLED && setVisualSource("generate")}
+                disabled={!GENERATE_VISUALS_ENABLED}
+                className="rounded-lg py-2 text-[13px] nova-display font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                style={{
+                  background: visualSource === "generate" ? "var(--elevated)" : "transparent",
+                  color: visualSource === "generate" ? "var(--text)" : "var(--muted)",
+                }}
+              >
+                {GENERATE_VISUALS_ENABLED ? "Generate for me" : "Generate (unavailable)"}
+              </button>
             </div>
           )}
 

@@ -5,10 +5,13 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "./lib/supabase.js";
+import { env } from "./lib/env.js";
 import { transcribeAudio } from "./pipeline/transcribe.js";
 import { analyzeAudio } from "./pipeline/audioAnalysis.js";
-import { generateVisual } from "./pipeline/generateVisuals.js";
+import { generateVisual, MAX_VISUAL_GENERATIONS_PER_JOB } from "./pipeline/generateVisuals.js";
 import { generateVoiceover } from "./pipeline/tts.js";
+import { planScenes } from "./pipeline/scenePlanner.js";
+import { groupScenesForGeneration, type SceneGenerationGroup } from "./pipeline/sceneGrouping.js";
 import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
 import { explainSegments } from "./pipeline/explainSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
@@ -23,7 +26,7 @@ import {
   writeAssFile,
 } from "./pipeline/ffmpegRender.js";
 import { uploadClipAsset } from "./pipeline/uploadOutputs.js";
-import type { Database, Job, SelectedSegment, Upload } from "./lib/database.types.js";
+import type { Database, Job, Scene, SceneVisual, SelectedSegment, Upload } from "./lib/database.types.js";
 import type { PipelineJobPayload } from "./queue.js";
 
 const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as const;
@@ -34,6 +37,13 @@ const PLATFORMS_FOR_VERTICAL = ["tiktok", "shorts", "reels", "facebook"] as cons
 // generated visual clip itself loops (see renderClipWithAudioTrack) so it
 // doesn't need to natively cover the whole window either.
 const GENERATED_VISUAL_MAX_SECONDS = 45;
+
+// How long to wait before the one allowed retry of the failure-path job
+// re-fetch (see fetchLatestJobForCleanup) — short, since this already runs
+// after the original failure and shouldn't meaningfully delay marking the
+// job failed/refunding credit; long enough to ride out a brief DB/network
+// blip rather than a sustained outage.
+const CLEANUP_REFETCH_RETRY_DELAY_MS = 500;
 
 interface SourceProbe {
   duration: number;
@@ -113,51 +123,247 @@ async function setStatus(
   if (error) throw new Error(`Failed to set job ${jobId} status to "${status}": ${error.message}`);
 }
 
-async function removeGeneratedVisual(
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// The only two shapes generated_visual_url/scene_visuals[].video_url are
+// ever written as (see the rehostPath construction above, in
+// runDiscoverPhase) — the main/group-0 visual and an additional scene-group
+// visual, always scoped under this exact user and this exact job. Anchored
+// full-string match (^...$), not a prefix check: a value that merely starts
+// with this job's own prefix but has an unexpected suffix (e.g. a
+// different extension, extra path segments, or a non-numeric/malformed
+// group id) is rejected just like a value that belongs to a different
+// user or job entirely.
+export function isOwnGeneratedVisualPath(candidate: string, userId: string, jobId: string): boolean {
+  const pattern = new RegExp(`^${escapeRegExp(userId)}/generated/${escapeRegExp(jobId)}(?:-group-\\d+)?\\.mp4$`);
+  return pattern.test(candidate);
+}
+
+// generated_visual_url and scene_visuals[].video_url are written as bare
+// uploads-bucket object paths — both write sites (jobRunner.ts, the
+// `rehostPath` passed to the `generated_visual_url` update and into each
+// SceneVisual's video_url) derive from the same plain
+// `${user_id}/generated/${job.id}[-group-{n}].mp4` string, never a URL or
+// a getPublicUrl() result (confirmed by re-reading both write sites before
+// writing this). This is a defensive normalizer, not evidence a URL has
+// ever actually been stored: it exists so a future regression (e.g. a
+// getPublicUrl()-style write creeping into this path, as already happens
+// for the separate `clips` bucket) fails safely — rejected and logged —
+// rather than silently handing an unrelated string straight to
+// storage.remove(). Every candidate, bare path or URL-extracted path
+// alike, must pass isOwnGeneratedVisualPath — structural shape alone
+// (e.g. "looks like a path", "is a same-origin uploads-bucket URL") is
+// not sufficient on its own; it must be exactly this job's own object.
+// Only ever extracts a path when the URL explicitly names the `uploads`
+// bucket in Supabase Storage's own URL shape, confirmed against the
+// installed @supabase/storage-js SDK source (getPublicUrl/createSignedUrl/
+// download in node_modules/@supabase/storage-js): "public/" and "sign/"
+// are real prefixes; a plain private authenticated download has no extra
+// prefix segment at all (covered by the optional group matching nothing) —
+// there is no real "/object/authenticated/<bucket>/..." shape, so that
+// alternative has been removed rather than guessed at. Origin check (not
+// just path shape) is what makes this "belonging to this project's
+// uploads bucket" rather than "shaped like any Supabase Storage URL" —
+// env.supabaseUrl is guaranteed set by assertEnv() at worker startup
+// (index.ts) before any job is ever processed.
+export function toUploadsObjectPath(value: string, userId: string, jobId: string): string | null {
+  if (!value) return null;
+
+  if (!value.includes("://")) {
+    if (!isOwnGeneratedVisualPath(value, userId, jobId)) {
+      console.error(`[job ${jobId}] rejected generated-visual path that isn't this job's own main/group video: ${value}`);
+      return null;
+    }
+    return value;
+  }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(value);
+  } catch {
+    console.error(`[job ${jobId}] rejected unparseable generated-visual URL: ${value}`);
+    return null;
+  }
+
+  try {
+    if (parsed.origin !== new URL(env.supabaseUrl).origin) {
+      console.error(`[job ${jobId}] rejected generated-visual URL from an unexpected origin: ${value}`);
+      return null;
+    }
+  } catch {
+    console.error(`[job ${jobId}] could not verify generated-visual URL origin (env.supabaseUrl unset/invalid) — rejecting: ${value}`);
+    return null;
+  }
+
+  const match = parsed.pathname.match(/\/storage\/v1\/object\/(?:public\/|sign\/)?uploads\/([^?]+)/);
+  if (!match) {
+    console.error(`[job ${jobId}] rejected unrecognized generated-visual URL (not an uploads-bucket object): ${value}`);
+    return null;
+  }
+  const extracted = decodeURIComponent(match[1]);
+  if (!isOwnGeneratedVisualPath(extracted, userId, jobId)) {
+    console.error(`[job ${jobId}] rejected generated-visual URL whose object path isn't this job's own main/group video: ${value}`);
+    return null;
+  }
+  return extracted;
+}
+
+// Collects every generated-visual object path actually recorded on this
+// job — generated_visual_url (the primary/group-0 visual) and every
+// non-null scene_visuals[].video_url (additional scene-group visuals) —
+// deduplicated, since group 0's path is written identically into both
+// fields. Deliberately does not guess unrecorded group filenames: reads
+// only what the database says was persisted, never what "should" exist
+// given a group's position in the plan. generated_visual_url and each
+// group's scene_visuals entry are now written to the database immediately
+// after that group's own upload succeeds (see runDiscoverPhase), not
+// batched until the end of the generation loop, so a path survives here as
+// long as its own group finished uploading before the job failed. The one
+// path this still cannot recover: a group whose Storage upload SUCCEEDED
+// but whose own scene_visuals write (or, for group 0, its
+// generated_visual_url write) then failed — the video exists in Storage,
+// but nothing was ever committed to point at it, so there is nothing to
+// read back for it here, by construction. (A group whose Storage upload
+// itself fails creates no orphan at all — genUploadError is checked and
+// throws before anything is written to either Storage or the database, so
+// there is nothing left behind to clean up for that group.) This remaining
+// gap is not solved by this function or its callers; it is a known,
+// disclosed limitation. Callers must also pass the job row as it exists
+// *after* the failure, not a pre-phase snapshot — see processJob's catch
+// block, which re-fetches the row for exactly this reason.
+export function collectGeneratedVisualPaths(upload: Upload, job: Job): string[] {
+  const paths = new Set<string>();
+
+  if (typeof job.generated_visual_url === "string" && job.generated_visual_url.length > 0) {
+    const normalized = toUploadsObjectPath(job.generated_visual_url, upload.user_id, job.id);
+    if (normalized) paths.add(normalized);
+  }
+
+  if (Array.isArray(job.scene_visuals)) {
+    for (const entry of job.scene_visuals) {
+      const videoUrl = entry && typeof entry === "object" ? (entry as SceneVisual).video_url : null;
+      if (typeof videoUrl === "string" && videoUrl.length > 0) {
+        const normalized = toUploadsObjectPath(videoUrl, upload.user_id, job.id);
+        if (normalized) paths.add(normalized);
+      }
+    }
+  }
+
+  return [...paths];
+}
+
+// Removes every generated-visual Storage object recorded on this specific
+// failed job (main visual + any additional scene-group visuals) — never
+// upload.file_url (the user's original source) or any TTS-rehosted audio,
+// neither of which this function ever reads. Scoped to generate-visual
+// jobs only; a no-op for "has footage" jobs, which have nothing to clean
+// up here. Never throws: a Storage error is logged, and any unexpected
+// error (e.g. malformed scene_visuals data this function didn't already
+// guard against) is caught and logged too, so a bug in this cleanup path
+// can never prevent the caller's failed-status update or credit refund.
+export async function removeGeneratedVisuals(
   supabase: SupabaseClient<Database>,
   upload: Upload,
   job: Job,
 ): Promise<void> {
   if (upload.visual_source !== "generate") return;
 
-  const path = job.generated_visual_url ?? `${upload.user_id}/generated/${job.id}.mp4`;
+  try {
+    const paths = collectGeneratedVisualPaths(upload, job);
+    if (paths.length === 0) return;
 
-  const { error } = await supabase.storage.from("uploads").remove([path]);
-
-  if (error) {
-    console.error(`[job ${job.id}] could not remove generated visual:`, error.message);
+    const { error } = await supabase.storage.from("uploads").remove(paths);
+    if (error) {
+      console.error(`[job ${job.id}] could not remove generated visual(s) (${paths.join(", ")}):`, error.message);
+    }
+  } catch (err) {
+    console.error(`[job ${job.id}] unexpected error while removing generated visual(s):`, err instanceof Error ? err.message : err);
   }
+}
+
+// Re-fetches the job row for the failure-path cleanup in processJob's catch
+// block below — scoped to exactly that one call site, not a general-purpose
+// retry utility. At most one retry, after CLEANUP_REFETCH_RETRY_DELAY_MS,
+// absorbs a brief DB/network blip (which, notably, isn't fully independent
+// of whatever just failed the job itself) without meaningfully delaying the
+// failed-status update/credit refund that follow. Handles both a returned
+// Supabase error/no-row result and an actual thrown exception identically
+// (each attempt has its own try/catch), since a thrown exception bypassing
+// an inline `if (error || !data)` check — unlike one — would otherwise skip
+// the retry entirely. Returns null (never the stale pre-phase job) if both
+// attempts fail, so the caller decides what "no fresh data" means rather
+// than this function silently substituting something it was never asked
+// for.
+export async function fetchLatestJobForCleanup(supabase: SupabaseClient<Database>, jobId: string): Promise<Job | null> {
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      const { data, error } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+      if (!error && data) return data;
+      console.error(
+        `[job ${jobId}] cleanup job re-fetch attempt ${attempt}/2 did not return the row: ${error?.message ?? "no row returned"}`,
+      );
+    } catch (err) {
+      console.error(
+        `[job ${jobId}] cleanup job re-fetch attempt ${attempt}/2 threw: ${err instanceof Error ? err.message : err}`,
+      );
+    }
+    if (attempt === 1) {
+      await new Promise((resolve) => setTimeout(resolve, CLEANUP_REFETCH_RETRY_DELAY_MS));
+    }
+  }
+  return null;
+}
+
+// Defense-in-depth for the create-job enqueue-timeout race (see
+// src/app/api/jobs/route.ts's enqueue compensation): if the HTTP request
+// believed the enqueue failed and compensated by marking this job
+// `failed`, but the enqueue had actually succeeded, this worker could
+// still receive it. A job already `failed` by the time the worker reads
+// it should never be processed — the compensation already ran (or is
+// running), and doing real work here would mean producing output for a
+// job the customer was told failed and was refunded for. Exported and
+// tested directly (rather than only inline in processJob) for the same
+// reason fetchLatestJobForCleanup above is: processJob itself can't be
+// exercised end-to-end here without a real Supabase backend, since
+// createAdminClient() only validates that env vars are present, not
+// valid, so calling it in a test would attempt a real network call.
+export function isAlreadyFailedJob(job: Job): boolean {
+  return job.status === "failed";
 }
 
 export async function processJob(payload: PipelineJobPayload): Promise<void> {
   const jobId = payload.jobId;
   const supabase = createAdminClient();
   const workDir = await mkdtemp(path.join(tmpdir(), `velora-job-${jobId}-`));
-  
+
+  // Hoisted above the try block (rather than left as try-scoped consts) so
+  // the catch block below can reach whichever of these were successfully
+  // fetched before the failure, to know what to clean up.
   let job: Job | null = null;
   let upload: Upload | null = null;
-  
-  try {
-    const { data: fetchedJob, error: jobError } = await supabase
-  .from("jobs")
-  .select("*")
-  .eq("id", jobId)
-  .single();
 
-job = fetchedJob;
+  try {
+    const { data: fetchedJob, error: jobError } = await supabase.from("jobs").select("*").eq("id", jobId).single();
+    job = fetchedJob;
     if (jobError || !job) {
       throw new Error(
         `Job ${jobId} not found: ${jobError?.message ?? "no row returned"} (code: ${jobError?.code ?? "n/a"})`,
       );
     }
 
-    const { data: fetchedUpload, error: uploadError } = await supabase
-  .from("uploads")
-  .select("*")
-  .eq("id", job.upload_id)
-  .single();
+    if (isAlreadyFailedJob(job)) {
+      console.log(`[job ${jobId}] already marked failed — skipping processing (enqueue-compensation race guard)`);
+      return;
+    }
 
-upload = fetchedUpload;
+    const { data: fetchedUpload, error: uploadError } = await supabase
+      .from("uploads")
+      .select("*")
+      .eq("id", job.upload_id)
+      .single();
+    upload = fetchedUpload;
     if (uploadError || !upload) {
       throw new Error(
         `Upload for job ${jobId} not found: ${uploadError?.message ?? "no row returned"} (code: ${uploadError?.code ?? "n/a"})`,
@@ -178,18 +384,44 @@ upload = fetchedUpload;
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     console.error(`[job ${jobId}] failed:`, message);
-    
-    if (
-  job &&
-  upload &&
-  (payload.phase === "discover" || payload.phase === "transform")
-) {
-  await removeGeneratedVisual(supabase, upload, job);
-}
-    
     // Best-effort from here down — we're already in the failure path, so a
     // second failure just gets logged rather than thrown (nothing upstream
     // left to catch it, and throwing here would skip the workDir cleanup).
+    // Wrapped in its own try/catch (on top of removeGeneratedVisuals' own
+    // internal one) so a cleanup failure can never skip the failed-status
+    // update or credit refund immediately below, no matter what.
+    try {
+      if (job && upload && (payload.phase === "discover" || payload.phase === "transform")) {
+        // `job` was fetched before the phase ran and is never updated in
+        // place — runDiscoverPhase's generated_visual_url/scene_visuals
+        // writes go straight to the database, not back into this object —
+        // so using it directly here would make removeGeneratedVisuals look
+        // for paths that were never there to begin with, missing exactly
+        // the visuals a failure after a successful generation actually
+        // left in Storage. Re-fetch the row (with one bounded retry — see
+        // fetchLatestJobForCleanup) so cleanup sees whatever was actually
+        // persisted before the failure.
+        const latestJob = await fetchLatestJobForCleanup(supabase, jobId);
+        if (!latestJob) {
+          // Both attempts failed. Falling back to `job` is the safest
+          // remaining option — it can only miss paths persisted after it
+          // was taken, never invent ones that don't belong to this job,
+          // since isOwnGeneratedVisualPath's ownership check is unaffected
+          // either way — but it is NOT a guarantee anything will be found:
+          // `job` is whatever existed before this phase ran, most often
+          // nothing at all. Tagged distinctly so this degraded path (DB
+          // unreachable right when cleanup needed it most) can be
+          // alerted on or reconciled against Storage directly, rather than
+          // reading as an ordinary "nothing to clean up" no-op.
+          console.error(
+            `[job ${jobId}] [orphan-risk] could not refresh job after 2 attempts before generated-visual cleanup — attempting cleanup with only the pre-phase snapshot already in hand, which may be incomplete or empty.`,
+          );
+        }
+        await removeGeneratedVisuals(supabase, upload, latestJob ?? job);
+      }
+    } catch (cleanupErr) {
+      console.error(`[job ${jobId}] generated-visual cleanup threw unexpectedly:`, cleanupErr instanceof Error ? cleanupErr.message : cleanupErr);
+    }
     const { error: failStatusError } = await supabase
       .from("jobs")
       .update({ status: "failed", error_message: message.slice(0, 2000) })
@@ -223,12 +455,37 @@ async function runDiscoverPhase(
 ): Promise<void> {
   let sourceBytes: Buffer;
   let sourceExt: string;
+  // Populated below only for tts + generate jobs (the only path that plans
+  // scenes at all — see the scene_plan write further down). Kept in memory
+  // rather than re-read from Supabase since this same function already
+  // holds it right after writing it; null/empty is the expected, unchanged
+  // state for every other job shape (has-footage, uploaded audio, or
+  // visual_source !== "generate").
+  let scenePlan: Scene[] | null = null;
 
   if (upload.audio_source === "tts") {
     await setStatus(supabase, job.id, "generating_voiceover");
     if (!upload.script_text || !upload.tts_voice_id) {
       throw new Error("TTS upload is missing script_text or tts_voice_id");
     }
+
+    // Script-driven scene plan for the generate-video path (see
+    // scenePlanner.ts) — planned from the same script_text right after it's
+    // confirmed non-null, before any audio work starts. Not yet consumed by
+    // anything downstream; a planning failure is left to the existing
+    // top-level catch in runJob, same as any other discover-phase failure.
+    //
+    // Gated on visual_source === "generate" too, not just audio_source ===
+    // "tts": a scene plan only makes sense for the generate-video path (it
+    // drives what gets generated), and this is defense-in-depth against any
+    // legacy row with the old invalid tts + has combination — API
+    // validation already prevents this for new uploads.
+    if (upload.visual_source === "generate") {
+      scenePlan = await planScenes(upload.script_text);
+      const { error: scenePlanError } = await supabase.from("jobs").update({ scene_plan: scenePlan }).eq("id", job.id);
+      if (scenePlanError) throw new Error(`Failed to save scene plan: ${scenePlanError.message}`);
+    }
+
     sourceBytes = await generateVoiceover(upload.script_text, upload.tts_voice_id);
     sourceExt = ".mp3";
 
@@ -292,33 +549,132 @@ async function runDiscoverPhase(
     await setStatus(supabase, job.id, "generating_visuals");
     generatedWindowSeconds = Math.min(sourceDuration, GENERATED_VISUAL_MAX_SECONDS);
 
-    const { videoUrl } = await generateVisual({
-      contentType: upload.content_type,
-      moodDescription: upload.mood_description,
-      style: upload.visual_style,
-      durationSeconds: generatedWindowSeconds,
-    });
+    const hasScenePlan = !!(scenePlan && scenePlan.length > 0);
 
-    const genRes = await fetch(videoUrl);
-    if (!genRes.ok) throw new Error(`Could not download generated visual (${genRes.status})`);
-    const genBytes = Buffer.from(await genRes.arrayBuffer());
-    const genPath = path.join(workDir, "generated.mp4");
-    await writeFile(genPath, genBytes);
+    // Step 4J: group the scene plan into at most MAX_VISUAL_GENERATIONS_PER_JOB
+    // Higgsfield visual generations (see sceneGrouping.ts and the Step
+    // 4G-4I design audits) instead of the earlier single-generic-call
+    // behavior. Jobs with no scene plan (every shape besides tts + generate)
+    // fall back to a single synthetic group with no representative scene —
+    // exactly the old generic-prompt call, unchanged.
+    const groups: SceneGenerationGroup[] = hasScenePlan
+      ? groupScenesForGeneration(scenePlan!, MAX_VISUAL_GENERATIONS_PER_JOB)
+      : [{ group_id: 0, scene_indices: [], scenes: [] }];
 
-    // Re-host in our own storage rather than linking Higgsfield's URL directly,
-    // so we control retention/redistribution regardless of their link
-    // lifetime — and so the transform phase can re-download this exact
-    // asset later instead of paying to generate it a second time.
-    const rehostPath = `${upload.user_id}/generated/${job.id}.mp4`;
-    const { error: genUploadError } = await supabase.storage
-      .from("uploads")
-      .upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
-    if (genUploadError) throw new Error(`Failed to re-host generated visual: ${genUploadError.message}`);
+    // Defensive: groupScenesForGeneration() already enforces this ceiling
+    // itself, but this loop is what actually spends money on Higgsfield
+    // requests, so it never trusts that invariant blindly — a future bug in
+    // the grouping function can never turn into an extra paid request.
+    if (groups.length > MAX_VISUAL_GENERATIONS_PER_JOB) {
+      throw new Error(
+        `Scene visual generation budget exceeded: ${groups.length} > ${MAX_VISUAL_GENERATIONS_PER_JOB}`,
+      );
+    }
 
-    visualIsGenerated = true;
-    thumbnailSourcePath = genPath;
-    const { error: genUrlError } = await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
-    if (genUrlError) throw new Error(`Failed to save generated_visual_url: ${genUrlError.message}`);
+    // Positionally aligned with scenePlan — every scene starts "pending"
+    // and is filled in as its group's generation completes. Null (not this
+    // array) for jobs with no scene plan; nothing to record per-scene.
+    const sceneVisuals: SceneVisual[] | null = hasScenePlan
+      ? scenePlan!.map(() => ({ group_id: -1, status: "pending", video_url: null, generated_duration_seconds: null, error_message: null }))
+      : null;
+    if (sceneVisuals) {
+      for (const group of groups) {
+        for (const sceneIndex of group.scene_indices) sceneVisuals[sceneIndex].group_id = group.group_id;
+      }
+    }
+
+    // Sequential by design (Step 4J scope) — no added concurrency, no
+    // retries, so a mid-loop failure's blast radius (Higgsfield spend,
+    // failure handling) stays exactly as simple as the original
+    // single-call path: any throw here propagates to runJob's existing
+    // top-level catch, which marks the job failed and refunds the credit
+    // reservation, same as before.
+    for (const group of groups) {
+      // Full ordered group, not just its first scene — generateVisual()
+      // folds every scene's description/action into the prompt now (see
+      // buildSceneImagePrompt/buildSceneMotionPrompt), still exactly one
+      // image + one video Higgsfield generation for the whole group.
+      const groupScenes = hasScenePlan ? group.scenes : undefined;
+
+      const { videoUrl } = await generateVisual({
+        contentType: upload.content_type,
+        moodDescription: upload.mood_description,
+        style: upload.visual_style,
+        durationSeconds: generatedWindowSeconds,
+        scenes: groupScenes,
+      });
+
+      const genRes = await fetch(videoUrl);
+      // TEMPORARY DIAGNOSTIC — remove once the production "generated video has
+      // no video stream" investigation is resolved. Logs only response
+      // metadata and a 16-byte hex prefix (to sanity-check the ISO-BMFF/MP4
+      // "ftyp" signature) — never videoUrl, headers beyond content-type/
+      // content-length, or any other response content.
+      console.log(
+        `[discover] generated visual fetch (group ${group.group_id}): status=${genRes.status} content-type=${genRes.headers.get("content-type")} content-length=${genRes.headers.get("content-length")}`,
+      );
+      if (!genRes.ok) throw new Error(`Could not download generated visual for group ${group.group_id} (${genRes.status})`);
+      const genBytes = Buffer.from(await genRes.arrayBuffer());
+      const looksLikeIsoBmff = genBytes.subarray(4, 8).toString("ascii") === "ftyp";
+      console.log(
+        `[discover] generated visual downloaded (group ${group.group_id}): bytes=${genBytes.length} first16Hex=${genBytes.subarray(0, 16).toString("hex")} looksLikeIsoBmff=${looksLikeIsoBmff}`,
+      );
+
+      // Group 0 always covers scene 0 (grouping always starts from scene 0)
+      // — or is the sole synthetic group when there's no scene plan — so
+      // it's exactly the single asset every existing downstream consumer
+      // (selectSegments' window, discover thumbnails, runTransformPhase,
+      // runReclipPhase) already expects. Reusing the identical path/field
+      // for it means none of that code needs to change yet, per this
+      // step's scope. Any additional group (only possible once a scene
+      // plan produces >1 group) gets its own, disambiguated path so it
+      // doesn't overwrite group 0's file — flagged explicitly in the Step
+      // 4J report, since those extra assets aren't consumed by anything
+      // downstream yet (that's the later assembly step).
+      const isPrimaryGroup = group.group_id === 0;
+      const groupGenPath = path.join(workDir, isPrimaryGroup ? "generated.mp4" : `generated-group-${group.group_id}.mp4`);
+      await writeFile(groupGenPath, genBytes);
+
+      const rehostPath = isPrimaryGroup
+        ? `${upload.user_id}/generated/${job.id}.mp4`
+        : `${upload.user_id}/generated/${job.id}-group-${group.group_id}.mp4`;
+      const { error: genUploadError } = await supabase.storage
+        .from("uploads")
+        .upload(rehostPath, genBytes, { contentType: "video/mp4", upsert: true });
+      if (genUploadError) throw new Error(`Failed to re-host generated visual for group ${group.group_id}: ${genUploadError.message}`);
+
+      if (sceneVisuals) {
+        const { duration: groupDuration } = await probeSource(groupGenPath);
+        for (const sceneIndex of group.scene_indices) {
+          sceneVisuals[sceneIndex] = {
+            group_id: group.group_id,
+            status: "completed",
+            video_url: rehostPath,
+            generated_duration_seconds: groupDuration,
+            error_message: null,
+          };
+        }
+
+        // Persisted once per completed group, not batched until after the
+        // whole loop — the same immediacy generated_visual_url already has
+        // below. A later group's generation/upload can still throw and
+        // abort the loop; writing here means THIS group's video_url is
+        // already durable before that happens, so the failure-path cleanup
+        // (removeGeneratedVisuals, via its now-freshly-refetched job row)
+        // can actually find and remove it instead of only ever learning
+        // about it from a final write that a later failure prevented from
+        // ever running.
+        const { error: sceneVisualsError } = await supabase.from("jobs").update({ scene_visuals: sceneVisuals }).eq("id", job.id);
+        if (sceneVisualsError) throw new Error(`Failed to save scene visuals: ${sceneVisualsError.message}`);
+      }
+
+      if (isPrimaryGroup) {
+        visualIsGenerated = true;
+        thumbnailSourcePath = groupGenPath;
+        const { error: genUrlError } = await supabase.from("jobs").update({ generated_visual_url: rehostPath }).eq("id", job.id);
+        if (genUrlError) throw new Error(`Failed to save generated_visual_url: ${genUrlError.message}`);
+      }
+    }
   }
 
   await setStatus(supabase, job.id, "selecting");
