@@ -255,7 +255,64 @@ export async function POST(request: Request) {
   // 3. Hand off to the worker via the queue — processing never happens inline.
   // "discover" phase: analyze + select candidate moments, then stop at
   // awaiting_selection for the user to act on (see /api/jobs/[id]/confirm-selection).
-  await getPipelineQueue().add("process-job", { jobId: job.id, phase: "discover" }, { jobId: job.id });
+  try {
+    await getPipelineQueue().add("process-job", { jobId: job.id, phase: "discover" }, { jobId: job.id });
+  } catch (enqueueError) {
+    console.error(`[api/jobs] enqueue failed for job=${job.id}:`, enqueueError);
+
+    // create_job() already committed the row and reserved a credit before
+    // this point — an enqueue failure here must not leave either stuck.
+    // Conditional on status still being 'queued' (never unconditional):
+    // a timeout/network error on this call doesn't prove Redis never got
+    // the job — if the worker already picked it up and advanced the
+    // status, this WHERE clause simply matches nothing, and we must not
+    // overwrite real progress or refund a job that's actually running
+    // (see worker/src/jobRunner.ts's isAlreadyFailedJob guard, which
+    // exists specifically to catch the inverse of this race).
+    const { data: compensated, error: compensateError } = await supabase
+      .from("jobs")
+      .update({
+        status: "failed",
+        error_message: "Could not start processing — please try again.",
+      })
+      .eq("id", job.id)
+      .eq("status", "queued")
+      .select("id");
+
+    if (compensateError) {
+      // Could not even attempt the compensation — the job's real state is
+      // now unknown (it may be genuinely stuck 'queued' with no worker
+      // ever coming, or it may have advanced fine). Never report this as
+      // success: an unresolvable compensation attempt must not silently
+      // fall through to the 201 response below.
+      console.error(`[api/jobs] compensation update failed for job=${job.id}:`, compensateError);
+      return NextResponse.json({ error: "Could not start this job — please try again." }, { status: 500 });
+    } else if (compensated && compensated.length > 0) {
+      // The conditional update matched — the job was genuinely still
+      // 'queued', so the enqueue really did fail and it's now safe to
+      // refund. refund_job_reservation() is idempotent (0022), so even if
+      // this call itself fails, no double-refund risk exists on a retry —
+      // but a failure here must not be reported as if the enqueue
+      // succeeded, and must not silently claim the refund happened.
+      const { data: refunded, error: refundError } = await supabase.rpc("refund_job_reservation", {
+        p_job_id: job.id,
+      });
+      if (refundError) {
+        console.error(`[api/jobs] refund_job_reservation failed for job=${job.id} after enqueue failure:`, refundError);
+      } else if (refunded !== true) {
+        console.error(`[api/jobs] refund_job_reservation returned false for job=${job.id} — already refunded?`);
+      }
+      return NextResponse.json({ error: "Could not start this job — please try again." }, { status: 500 });
+    } else {
+      // The update matched zero rows: the job is no longer 'queued', which
+      // means the worker already picked it up — the enqueue evidently
+      // succeeded despite this request-side failure. Do not refund (there
+      // is nothing to refund) and do not tell the customer it failed.
+      console.error(
+        `[api/jobs] enqueue appeared to fail for job=${job.id} but the job already advanced past 'queued' — treating as a successful enqueue.`,
+      );
+    }
+  }
 
   return NextResponse.json({ job }, { status: 201 });
 }

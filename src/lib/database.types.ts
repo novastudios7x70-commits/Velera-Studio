@@ -162,8 +162,24 @@ export type Job = {
   scene_plan: Scene[] | null;
   scene_visuals: SceneVisual[] | null;
   error_message: string | null;
+  // Added by 0022_job_reconciliation.sql — see worker/src/lib/database.types.ts's
+  // copy of this comment for the full rationale (worker/src/reconcile.ts
+  // is where these are actually used; this copy exists only so this
+  // hand-maintained type stays accurate to the live schema).
+  reservation_refunded_at: string | null;
+  reconciled_at: string | null;
+  reconciliation_refund_pending_at: string | null;
   created_at: string;
   updated_at: string;
+};
+
+// Internal migration metadata, added by 0022_job_reconciliation.sql — see
+// worker/src/lib/database.types.ts's copy of this comment. Unused by
+// anything in src/; present only so this hand-maintained type stays
+// accurate to the live schema.
+export type MigrationActivation = {
+  migration: string;
+  activated_at: string;
 };
 
 export type Clip = {
@@ -234,12 +250,20 @@ export type Database = {
         Update: Partial<Lead>;
         Relationships: [];
       };
+      migration_activations: {
+        Row: MigrationActivation;
+        Insert: Partial<MigrationActivation> & Pick<MigrationActivation, "migration">;
+        Update: Partial<MigrationActivation>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       create_job: { Args: { p_upload_id: string }; Returns: Job };
       claim_clip_credit: { Args: { p_user_id: string; p_generated: boolean }; Returns: boolean };
-      refund_job_reservation: { Args: { p_job_id: string }; Returns: undefined };
+      // Returns boolean as of 0022_job_reconciliation.sql — see
+      // worker/src/lib/database.types.ts's copy of this comment.
+      refund_job_reservation: { Args: { p_job_id: string }; Returns: boolean };
       claim_upload_for_storage_cleanup: {
         Args: { p_upload_id: string };
         Returns: boolean;

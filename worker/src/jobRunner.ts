@@ -316,6 +316,23 @@ export async function fetchLatestJobForCleanup(supabase: SupabaseClient<Database
   return null;
 }
 
+// Defense-in-depth for the create-job enqueue-timeout race (see
+// src/app/api/jobs/route.ts's enqueue compensation): if the HTTP request
+// believed the enqueue failed and compensated by marking this job
+// `failed`, but the enqueue had actually succeeded, this worker could
+// still receive it. A job already `failed` by the time the worker reads
+// it should never be processed — the compensation already ran (or is
+// running), and doing real work here would mean producing output for a
+// job the customer was told failed and was refunded for. Exported and
+// tested directly (rather than only inline in processJob) for the same
+// reason fetchLatestJobForCleanup above is: processJob itself can't be
+// exercised end-to-end here without a real Supabase backend, since
+// createAdminClient() only validates that env vars are present, not
+// valid, so calling it in a test would attempt a real network call.
+export function isAlreadyFailedJob(job: Job): boolean {
+  return job.status === "failed";
+}
+
 export async function processJob(payload: PipelineJobPayload): Promise<void> {
   const jobId = payload.jobId;
   const supabase = createAdminClient();
@@ -334,6 +351,11 @@ export async function processJob(payload: PipelineJobPayload): Promise<void> {
       throw new Error(
         `Job ${jobId} not found: ${jobError?.message ?? "no row returned"} (code: ${jobError?.code ?? "n/a"})`,
       );
+    }
+
+    if (isAlreadyFailedJob(job)) {
+      console.log(`[job ${jobId}] already marked failed — skipping processing (enqueue-compensation race guard)`);
+      return;
     }
 
     const { data: fetchedUpload, error: uploadError } = await supabase

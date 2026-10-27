@@ -51,7 +51,43 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     .eq("status", "awaiting_selection");
   if (updateError) return NextResponse.json({ error: "Could not confirm selection." }, { status: 500 });
 
-  await getPipelineQueue().add("process-job", { jobId: id, phase: "transform" }, { jobId: `${id}-transform` });
+  try {
+    await getPipelineQueue().add("process-job", { jobId: id, phase: "transform" }, { jobId: `${id}-transform` });
+  } catch (enqueueError) {
+    console.error(`[api/jobs/confirm-selection] enqueue failed for job=${id}:`, enqueueError);
+
+    // No credit is reserved at this step — the initial reservation already
+    // happened at create_job() time, and any per-segment top-ups only
+    // happen later inside the worker's transform phase — so there's
+    // nothing to refund here, only the status flip to revert. Conditional
+    // on still being 'cutting', same reasoning as jobs/route.ts: this call
+    // throwing doesn't prove Redis never got the job.
+    const { data: reverted, error: revertError } = await supabase
+      .from("jobs")
+      .update({ status: "awaiting_selection" })
+      .eq("id", id)
+      .eq("status", "cutting")
+      .select("id");
+
+    if (revertError) {
+      console.error(`[api/jobs/confirm-selection] revert update failed for job=${id}:`, revertError);
+      return NextResponse.json({ error: "Could not confirm selection — please try again." }, { status: 500 });
+    }
+
+    if (reverted && reverted.length > 0) {
+      // Genuinely still 'cutting' — the enqueue really did fail, and the
+      // revert correctly undid the status change so the user can retry.
+      return NextResponse.json({ error: "Could not confirm selection — please try again." }, { status: 500 });
+    }
+
+    // Matched zero rows: the job already advanced past 'cutting', so the
+    // enqueue evidently succeeded despite this request-side failure. Do
+    // not overwrite real progress and do not report a false failure —
+    // respond exactly as the success path below does.
+    console.error(
+      `[api/jobs/confirm-selection] enqueue appeared to fail for job=${id} but it already advanced past 'cutting' — treating as a successful enqueue.`,
+    );
+  }
 
   return NextResponse.json({ ok: true });
 }

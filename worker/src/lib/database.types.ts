@@ -162,6 +162,24 @@ export type Job = {
   scene_plan: Scene[] | null;
   scene_visuals: SceneVisual[] | null;
   error_message: string | null;
+  // Added by 0022_job_reconciliation.sql. reservation_refunded_at is the
+  // idempotency claim refund_job_reservation() uses — null means "not yet
+  // refunded under this mechanism," never proof either way for a job
+  // created before this column existed (see reconcile.ts's historical
+  // cutoff, read from the migration_activations table below, not a
+  // hardcoded date). reconciled_at marks that the automated stale-job
+  // reconciler claimed this row — distinct from reservation_refunded_at,
+  // since the claim and the refund are two separate steps that can't
+  // share one transaction (see reconcile.ts). reconciliation_refund_pending_at
+  // is a third, deliberately separate marker: set only while the
+  // reconciler's own claim has landed but its refund hasn't yet been
+  // confirmed, cleared once it is — never set or read by anything except
+  // reconcile.ts, so it can never be confused with reconciled_at being
+  // set for some other, future reason, or with an ordinary worker-driven
+  // failure (which never touches either of these two columns).
+  reservation_refunded_at: string | null;
+  reconciled_at: string | null;
+  reconciliation_refund_pending_at: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -186,6 +204,15 @@ export type Clip = {
   render_started_at: string | null; // set while a re-render is in flight; cleared on success or failure
   render_failed_at: string | null; // set only by a worker-side reclip failure; cleared when a new attempt starts or succeeds
   created_at: string;
+};
+
+// Internal migration metadata, added by 0022_job_reconciliation.sql — one
+// row per migration that records the real instant it actually ran. Not
+// exposed to any role via RLS/PostgREST; read only by reconcile.ts's
+// getMigrationCutoff() via the service-role client, which bypasses RLS.
+export type MigrationActivation = {
+  migration: string;
+  activated_at: string;
 };
 
 export type Database = {
@@ -219,12 +246,23 @@ export type Database = {
           { foreignKeyName: "clips_job_id_fkey"; columns: ["job_id"]; referencedRelation: "jobs"; referencedColumns: ["id"] },
         ];
       };
+      migration_activations: {
+        Row: MigrationActivation;
+        Insert: Partial<MigrationActivation> & Pick<MigrationActivation, "migration">;
+        Update: Partial<MigrationActivation>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
       create_job: { Args: { p_upload_id: string }; Returns: Job };
       claim_clip_credit: { Args: { p_user_id: string; p_generated: boolean }; Returns: boolean };
-      refund_job_reservation: { Args: { p_job_id: string }; Returns: undefined };
+      // Returns boolean as of 0022_job_reconciliation.sql — true on a
+      // successful first-time refund, false if already refunded (or the
+      // job doesn't exist); raises (rather than returning anything) if
+      // the job's upload/profile can't be resolved, per the idempotent
+      // claim-and-refund invariant documented in that migration.
+      refund_job_reservation: { Args: { p_job_id: string }; Returns: boolean };
       claim_upload_for_storage_cleanup: {
         Args: { p_upload_id: string };
         Returns: boolean;

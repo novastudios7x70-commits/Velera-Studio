@@ -45,6 +45,7 @@ import {
   collectGeneratedVisualPaths,
   removeGeneratedVisuals,
   fetchLatestJobForCleanup,
+  isAlreadyFailedJob,
 } from "./jobRunner.js";
 import type { Database, Job, SceneVisual, Upload } from "./lib/database.types.js";
 
@@ -400,4 +401,37 @@ test("a 'has footage' upload never calls remove(), even with a generated_visual_
 
   await composeCleanupLikeCatchBlock(supabase, JOB, staleJob, { user_id: USER, visual_source: "has" } as Upload);
   assert.equal(removeCalls.length, 0);
+});
+
+// --- isAlreadyFailedJob: defense-in-depth against the create-job
+// enqueue-timeout race (see src/app/api/jobs/route.ts's enqueue
+// compensation and jobRunner.ts's own comment above processJob). Tested
+// directly, not via processJob itself, for the same reason noted at the
+// top of this file: processJob's own createAdminClient() call would
+// attempt a real network connection, which this test environment has no
+// way to satisfy. isAlreadyFailedJob is the real, exported production
+// predicate processJob calls immediately after fetching the job row and
+// before dispatching to any phase handler — this is not a copy of that
+// logic, it's the same function.
+
+test("isAlreadyFailedJob: a job already marked failed is correctly identified", () => {
+  const failedJob = { id: JOB, status: "failed" } as Job;
+  assert.equal(isAlreadyFailedJob(failedJob), true);
+});
+
+test("isAlreadyFailedJob: every other job status is correctly NOT treated as already-failed", () => {
+  const nonFailedStatuses = [
+    "queued",
+    "generating_voiceover",
+    "analyzing",
+    "generating_visuals",
+    "selecting",
+    "awaiting_selection",
+    "cutting",
+    "captioning",
+    "done",
+  ] as const;
+  for (const status of nonFailedStatuses) {
+    assert.equal(isAlreadyFailedJob({ id: JOB, status } as Job), false, `status "${status}" should not be treated as already-failed`);
+  }
 });
