@@ -84,15 +84,24 @@ export interface QueueJobChecker {
   hasJob(jobId: string): Promise<boolean>;
 }
 
-// Real implementation, backed by BullMQ's own read-only getJob() lookup —
-// not wired into any scheduler here; callers construct this themselves
-// when/if they actually run reconciliation.
-export function createBullMqJobChecker(): QueueJobChecker {
+// Real implementation, backed by BullMQ's own read-only getJob() lookup.
+// Not wired into any scheduler here; callers construct this themselves
+// when/if they actually run reconciliation. The underlying Queue opens its
+// own Redis connection and is meant to be long-lived (created once, reused
+// across many reconciliation passes) rather than recreated per call — so
+// this also exposes close(), for a caller that owns this instance across
+// the process lifetime to release that connection on shutdown. close() is
+// additive only: it does not change hasJob()'s behavior or anything about
+// which jobs are eligible for reconciliation.
+export function createBullMqJobChecker(): QueueJobChecker & { close(): Promise<void> } {
   const queue = new Queue<PipelineJobPayload>(PIPELINE_QUEUE_NAME, { connection: createRedisConnection() });
   return {
     async hasJob(jobId: string): Promise<boolean> {
       const job = await queue.getJob(jobId);
       return job != null;
+    },
+    async close(): Promise<void> {
+      await queue.close();
     },
   };
 }

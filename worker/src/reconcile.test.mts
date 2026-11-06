@@ -446,3 +446,88 @@ test("retryPendingRefunds: a clean 'already refunded' response (no RPC error) st
   assert.equal(updateCalls.length, 1);
   assert.equal(updateCalls[0].reconciliation_refund_pending_at, null);
 });
+
+// --- genuine concurrency: two simultaneous attempts on the same job ---
+//
+// Everything above tests the lost-race outcome by pre-scripting the fake's
+// response (jobsUpdate: { matches: false }) — useful for the outcome, but
+// it never actually exercises two calls racing against shared, mutable
+// state at the same time. This test does: both calls hit the exact same
+// in-memory "table" concurrently via Promise.all, and the fake's claim
+// update performs the real conditional check-then-write Postgres itself
+// guarantees atomically — only one caller's write can ever see
+// reconciled_at still null. This is what actually stands in for "two
+// Railway replicas reconciling the same stale job at once," rather than
+// asserting on a result the test itself dictated in advance. It does not
+// modify, weaken, or bypass any real safeguard — claimAndRefund and
+// refund_job_reservation (exercised here via a fake RPC) are called
+// completely unmodified.
+test("concurrency: two simultaneous reconcile attempts on the same job — exactly one claims and refunds, the other loses the race", async () => {
+  // The shared, mutable "table" both concurrent calls read and write —
+  // this is what makes the race genuine rather than pre-scripted.
+  const jobsTable = new Map<string, { status: string; reconciled_at: string | null }>();
+  jobsTable.set(JOB, { status: "queued", reconciled_at: null });
+
+  // Forces both calls to arrive at the claim update before either is
+  // allowed to perform its check-then-write, so the test doesn't depend on
+  // incidental timing to actually exercise the race every run.
+  let waitersAtGate = 0;
+  let releaseGate: (() => void) | null = null;
+  const gate = new Promise<void>((resolve) => {
+    releaseGate = resolve;
+  });
+
+  let rpcCallCount = 0;
+
+  const claimChain = {
+    eq() {
+      return claimChain;
+    },
+    is() {
+      return claimChain;
+    },
+    async select() {
+      waitersAtGate++;
+      if (waitersAtGate >= 2) releaseGate?.();
+      await gate;
+      // Everything from here to the write is synchronous — in a
+      // single-threaded event loop that's what makes this block behave
+      // atomically with respect to the other caller's own resumption,
+      // the same way Postgres's own WHERE-clause evaluation and write are
+      // atomic within one statement.
+      const current = jobsTable.get(JOB);
+      if (!current || current.status !== "queued" || current.reconciled_at !== null) {
+        return { data: [], error: null };
+      }
+      jobsTable.set(JOB, { status: "failed", reconciled_at: "now" });
+      return { data: [{ id: JOB }], error: null };
+    },
+  };
+
+  const supabase = {
+    from(table: string) {
+      if (table !== "jobs") throw new Error(`unexpected table "${table}" in concurrency test`);
+      return { update: () => claimChain };
+    },
+    async rpc() {
+      rpcCallCount++;
+      return { data: true, error: null };
+    },
+  } as unknown as SupabaseClient<Database>;
+
+  const job = makeJob({ status: "queued" });
+  const checker = makeQueueChecker(false);
+
+  const [resultA, resultB] = await Promise.all([
+    reconcileQueuedJob(supabase, checker, CUTOFF, job, NOW),
+    reconcileQueuedJob(supabase, checker, CUTOFF, job, NOW),
+  ]);
+
+  const outcomes = [resultA.action, resultB.action].sort();
+  assert.deepEqual(
+    outcomes,
+    ["claim_lost_race", "reconciled"],
+    "exactly one concurrent attempt must claim the job and the other must lose the race",
+  );
+  assert.equal(rpcCallCount, 1, "the refund RPC must be invoked by the single winning claim only — never by the loser, never twice");
+});

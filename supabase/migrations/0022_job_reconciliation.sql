@@ -55,17 +55,29 @@ values ('0022_job_reconciliation', now())
 on conflict (migration) do nothing;
 
 -- Whole-function replace of the live 0003_functions.sql definition.
--- Behavior preserved exactly (plan-specific credit adjustments, signature,
--- SECURITY DEFINER, search_path) — the only change is making it
--- idempotent and making every failure mode either visibly succeed with
--- both halves committed, or raise and roll back everything, never a
--- silent partial effect.
+-- Behavior preserved (plan-specific credit adjustments, SECURITY DEFINER,
+-- search_path) — the changes are making it idempotent, making every
+-- failure mode either visibly succeed with both halves committed or raise
+-- and roll back everything, and changing its return type from void to
+-- boolean so callers (worker/src/reconcile.ts, worker/src/jobRunner.ts,
+-- src/app/api/jobs/route.ts) can distinguish "this call actually performed
+-- the refund" from "already refunded by an earlier call."
 --
--- The signature, SECURITY DEFINER, and service_role-only grant are
--- unchanged from 0003_functions.sql (confirmed by inspection — CREATE OR
--- REPLACE preserves existing grants for an unchanged signature, so no
--- grant/revoke statements are needed here).
-create or replace function public.refund_job_reservation(p_job_id uuid)
+-- That return-type change is exactly why this can't be a plain
+-- `create or replace function`: Postgres refuses to let CREATE OR REPLACE
+-- change an existing function's return type —
+--   ERROR: cannot change return type of existing function
+--   HINT: Use DROP FUNCTION refund_job_reservation(uuid) first.
+-- — so the old void-returning version (0003_functions.sql) must be
+-- dropped before the new boolean-returning version is created. Confirmed
+-- by inspection that nothing else in the schema depends on it: no
+-- trigger, view, policy, or generated/check-constraint expression anywhere
+-- in supabase/migrations calls this function (the only other hits are
+-- comments), so a plain DROP — no CASCADE — cannot remove anything
+-- unrelated.
+drop function if exists public.refund_job_reservation(uuid);
+
+create function public.refund_job_reservation(p_job_id uuid)
 returns boolean
 language plpgsql
 security definer
@@ -154,3 +166,15 @@ begin
   return true;
 end;
 $$;
+
+-- CREATE OR REPLACE FUNCTION on an unchanged signature preserves existing
+-- grants, but DROP FUNCTION followed by CREATE FUNCTION (required above
+-- for the return-type change) does not: a freshly created function
+-- reverts to Postgres's default privileges, which grant EXECUTE to PUBLIC
+-- unless default privileges were altered for this role/schema. So the
+-- service-role-only restriction from 0003_functions.sql must be
+-- re-applied explicitly here, or every authenticated/anon client would
+-- regain the ability to call this function directly over PostgREST after
+-- this migration runs.
+revoke all on function public.refund_job_reservation(uuid) from public, authenticated, anon;
+grant execute on function public.refund_job_reservation(uuid) to service_role;

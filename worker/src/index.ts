@@ -2,6 +2,9 @@ import { Worker } from "bullmq";
 import { assertEnv, env } from "./lib/env.js";
 import { PIPELINE_QUEUE_NAME, createRedisConnection, type PipelineJobPayload } from "./queue.js";
 import { processJob } from "./jobRunner.js";
+import { createBullMqJobChecker } from "./reconcile.js";
+import { createAdminClient } from "./lib/supabase.js";
+import { createReconciliationScheduler, DEFAULT_RECONCILE_INTERVAL_MS, MIN_RECONCILE_INTERVAL_MS } from "./reconcileRunner.js";
 
 assertEnv();
 
@@ -65,8 +68,63 @@ worker.on("failed", (job, err) => {
   console.error(`[worker] job ${job?.data.jobId} failed:`, err.message);
 });
 
+// Off by default — this exact pathway (automatically flipping a stale job
+// to "failed" and refunding its credit) has never run against production
+// data before. Deploying this code does not, by itself, turn it on; an
+// operator must explicitly set RECONCILE_ENABLED=true. When enabled, it
+// runs as a plain in-process interval on this same long-running process —
+// never as a BullMQ job itself, so it never consumes a concurrency slot
+// meant for real video processing, and every pass is independently
+// wrapped so a database/Redis failure here can never crash this process
+// or interrupt the worker above. See reconcileRunner.ts for the full
+// scheduling design (overlap prevention, bounded queries, failure
+// isolation) and reconcile.ts for the conservative eligibility rules this
+// reuses unchanged.
+const reconcileEnabled = process.env.RECONCILE_ENABLED === "true";
+let reconcileScheduler: ReturnType<typeof createReconciliationScheduler> | null = null;
+let reconcileQueueChecker: ReturnType<typeof createBullMqJobChecker> | null = null;
+
+if (reconcileEnabled) {
+  const configuredIntervalMs = Number(process.env.RECONCILE_INTERVAL_MS);
+  const intervalMs = Number.isFinite(configuredIntervalMs) && configuredIntervalMs > 0 ? configuredIntervalMs : DEFAULT_RECONCILE_INTERVAL_MS;
+  reconcileQueueChecker = createBullMqJobChecker();
+  reconcileScheduler = createReconciliationScheduler({
+    getSupabase: createAdminClient,
+    queueChecker: reconcileQueueChecker,
+    intervalMs,
+  });
+  reconcileScheduler.start();
+  console.log(`[worker] stale-job reconciliation enabled (interval=${Math.max(intervalMs, MIN_RECONCILE_INTERVAL_MS)}ms)`);
+} else {
+  console.log("[worker] stale-job reconciliation disabled (set RECONCILE_ENABLED=true to enable)");
+}
+
 process.on("SIGTERM", async () => {
   console.log("[worker] shutting down");
+  // Order matters: stop scheduling new ticks first, then wait (bounded) for
+  // whatever pass is already running to actually finish. Closing the
+  // reconciliation Redis connection is conditional on that wait having
+  // genuinely succeeded — awaitIdle() resolving "timeout" means the pass
+  // may still be running and may still be using that connection, so close()
+  // is skipped in that case rather than called "anyway." This never
+  // produces an indefinite hang: awaitIdle() itself is bounded, and
+  // shutdown proceeds to worker.close()/process.exit() either way — on a
+  // timeout, the process exit a few lines below tears the leaked
+  // connection down at the OS level regardless of whether this code ever
+  // called its graceful close().
+  reconcileScheduler?.stop();
+  if (reconcileScheduler) {
+    const idleOutcome = await reconcileScheduler.awaitIdle();
+    if (idleOutcome === "idle") {
+      await reconcileQueueChecker?.close();
+    } else {
+      console.error(
+        "[worker] a reconciliation pass did not finish within the shutdown timeout — it may still be running and " +
+          "still using its Redis connection, so that connection is being left open rather than closed out from " +
+          "under it; shutdown is proceeding anyway and the process exit below will terminate it regardless",
+      );
+    }
+  }
   await worker.close();
   process.exit(0);
 });
