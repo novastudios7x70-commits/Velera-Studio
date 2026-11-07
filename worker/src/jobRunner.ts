@@ -12,7 +12,7 @@ import { generateVisual, MAX_VISUAL_GENERATIONS_PER_JOB } from "./pipeline/gener
 import { generateVoiceover } from "./pipeline/tts.js";
 import { planScenes } from "./pipeline/scenePlanner.js";
 import { groupScenesForGeneration, type SceneGenerationGroup } from "./pipeline/sceneGrouping.js";
-import { MIN_CLIP_SECONDS, selectSegments } from "./pipeline/selectSegments.js";
+import { MIN_CLIP_SECONDS, selectSegments, dedupeOverlappingSegments } from "./pipeline/selectSegments.js";
 import { explainSegments } from "./pipeline/explainSegments.js";
 import { buildAssDocument, buildMusicCue, buildWordCues } from "./pipeline/captions.js";
 import {
@@ -712,6 +712,21 @@ async function runDiscoverPhase(
       );
     }
   }
+
+  // Covers all three possible origins of `segments` uniformly — the
+  // synthetic whole-window segment above, selectSegments()'s LLM output,
+  // and its own heuristic fallback — since this runs once, after the
+  // if/else above has already settled on whichever of the three produced
+  // it. Guarantees no two surviving candidates cover substantially the
+  // same moment (see dedupeOverlappingSegments's own comment); a
+  // single-segment input is returned unchanged, so this is a no-op for
+  // the synthetic whole-window case and for any job where nothing
+  // actually overlapped. The existing zero-segment check directly below
+  // is this filter's only safety net too: merging can only ever shrink
+  // `segments`, never grow it, and it can only reach zero here if every
+  // input segment was already degenerate — exactly what that check already
+  // exists to catch.
+  segments = dedupeOverlappingSegments(segments);
 
   if (segments.length === 0) {
     throw new Error("No hook-worthy segments were found in this upload");
