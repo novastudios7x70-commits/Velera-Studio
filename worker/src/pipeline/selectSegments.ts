@@ -1,7 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { env } from "../lib/env.js";
-import type { AudioAnalysis, ContentType, SelectedSegment, Transcript } from "../lib/database.types.js";
+import type { AudioAnalysis, ContentType, SelectedSegment, Transcript, TranscriptWord } from "../lib/database.types.js";
 
 const segmentSchema = z.object({
   start_time: z.number().nonnegative(),
@@ -40,7 +40,134 @@ const MAX_CLIP_SECONDS = 45;
 // as a product/tuning knob, not a law.
 export const OVERLAP_RATIO_THRESHOLD = 0.4;
 
-function buildPrompt(contentType: ContentType, transcript: Transcript | null, audioAnalysis: AudioAnalysis | null, maxEndSeconds: number) {
+// Only the one method selectSegments() actually calls — lets tests inject a
+// fake client (see selectSegments.test.mts) instead of mocking the whole
+// SDK module, without introducing any new abstraction beyond this one seam.
+// Mirrors the identical pattern already established in scenePlanner.ts.
+type AnthropicMessagesClient = Pick<Anthropic, "messages">;
+
+export interface Sentence {
+  text: string;
+  start: number; // seconds
+  end: number; // seconds
+}
+
+// Bounds how long a sentence may grow without terminal punctuation before
+// being force-closed anyway. Necessary for transcripts with sparse or
+// absent punctuation (auto-generated transcription of run-on or informal
+// speech) — without this, a punctuation-free transcript would collapse
+// into exactly one "sentence" covering the entire thing, which is exactly
+// what groupIntoSentences must not do. 20s is deliberately well under
+// MAX_CLIP_SECONDS (45, so one forced sentence can never by itself eat an
+// unreasonable share of the longest allowed clip) and comfortably above a
+// typical real spoken sentence's length, so in practice this only ever
+// fires on genuinely punctuation-sparse stretches, not on ordinary long
+// (but legitimately single) sentences.
+const MAX_SENTENCE_SECONDS = 20;
+
+// Matches a word ending in one or more sentence-ending marks, optionally
+// followed by a closing quote/paren/bracket (e.g. `said."` or `"Really?"`).
+// Known, accepted limitation: this has no abbreviation detection (e.g.
+// "Mr." would end a sentence early) — deliberately not handled, since
+// AssemblyAI's own punctuate/format_text output transcribes spoken words
+// rather than typed abbreviations, making this a low-frequency edge case,
+// and handling it would mean guessing at a list of abbreviations rather
+// than a clean, understandable rule.
+const SENTENCE_END_RE = /[.!?]+["')\]]*$/;
+
+/**
+ * Groups a word-level transcript into sentence-level chunks using the
+ * punctuation AssemblyAI already attaches to each word's own text (see
+ * transcribe.ts's `punctuate: true, format_text: true` request) — no new
+ * API call, no new service, purely a local pass over data already fetched.
+ *
+ * Preserves chronological word order (words are defensively sorted by
+ * start time first — a no-op for AssemblyAI's actual output, which is
+ * always already chronological, but it guards a malformed transcript
+ * against processing words out of order), computes each sentence's bounds
+ * as the MINIMUM start and MAXIMUM end across every word in it — not just
+ * the first/last word by position — so an overlapping word (one whose
+ * span is partly or fully covered by another word in the same sentence)
+ * can never make the sentence's own boundary backward or shorter than the
+ * content it actually contains; for ordinary non-overlapping input this is
+ * exactly the first word's start and the last word's end, so it changes
+ * nothing for the common case. Never emits an empty sentence, and never
+ * lets one sentence swallow an unbounded stretch of a punctuation-sparse
+ * or unpunctuated transcript (see MAX_SENTENCE_SECONDS above). Returns
+ * `[]` only when the input has no words at all.
+ */
+export function groupIntoSentences(transcript: Transcript): Sentence[] {
+  const sentences: Sentence[] = [];
+  let buffer: TranscriptWord[] = [];
+  let bufferStart = 0;
+  let bufferEnd = 0;
+
+  const flush = () => {
+    if (buffer.length === 0) return;
+    const text = buffer.map((w) => w.text).join(" ").trim();
+    const start = bufferStart;
+    const end = bufferEnd;
+    buffer = [];
+    if (!text) return; // defensive: never emit an empty sentence
+    sentences.push({ text, start: start / 1000, end: end / 1000 });
+  };
+
+  // Defensive: sort by start time before processing (see doc comment above).
+  const words = [...transcript.words].sort((a, b) => a.start - b.start);
+
+  for (const word of words) {
+    if (!word.text || !word.text.trim()) continue; // skip stray empty tokens defensively
+    // Defensive: skip a word with a non-finite or inverted timestamp
+    // (mirrors the Number.isFinite() guards already applied in
+    // dedupeOverlappingSegments). Without this, a single corrupted word
+    // would poison its whole sentence's start/end with NaN/Infinity, which
+    // would then render as a garbled timestamp in the prompt text sent to
+    // the model instead of being caught here.
+    if (!Number.isFinite(word.start) || !Number.isFinite(word.end) || word.end < word.start) continue;
+
+    // Track true min-start/max-end incrementally rather than re-deriving
+    // them from buffer[0]/buffer[last] — this is what makes an overlapping
+    // word (e.g. a long word A=[0,5] containing a short, sentence-ending
+    // word B=[1,2]) correctly extend the sentence's end to A's end (5),
+    // not collapse it to B's own end (2) just because B happens to be
+    // last in sorted order.
+    if (buffer.length === 0) {
+      bufferStart = word.start;
+      bufferEnd = word.end;
+    } else {
+      if (word.start < bufferStart) bufferStart = word.start;
+      if (word.end > bufferEnd) bufferEnd = word.end;
+    }
+    buffer.push(word);
+
+    const endsSentence = SENTENCE_END_RE.test(word.text.trim());
+    const bufferDurationSeconds = (bufferEnd - bufferStart) / 1000;
+
+    if (endsSentence || bufferDurationSeconds >= MAX_SENTENCE_SECONDS) {
+      flush();
+    }
+  }
+  flush(); // trailing words with no terminal punctuation
+
+  return sentences;
+}
+
+// contentType === "music" (or no transcript) must produce byte-identical
+// prompt text to before this change — the spoken-only additions below
+// (spokenRules, the sentence-grouped transcript section) are appended only
+// inside the `contentType === "spoken" && transcript` branch, never
+// touching this shared `instructions` block or the music branch at the
+// bottom of this function. `sentences` is computed once by the caller
+// (selectSegments) and passed in here, rather than this function calling
+// groupIntoSentences() itself — see selectSegments() for why: the exact
+// same list must also be reused for the snap step, not recomputed.
+function buildPrompt(
+  contentType: ContentType,
+  transcript: Transcript | null,
+  audioAnalysis: AudioAnalysis | null,
+  maxEndSeconds: number,
+  sentences: Sentence[],
+) {
   const instructions = `You select the 3-5 best short-form-video moments from the source below.
 Return ONLY valid JSON matching this shape, nothing else:
 {"segments":[{"start_time":number,"end_time":number,"hook_type":"surprising_claim"|"question"|"contrarian"|"result_number"|"emotional"|"chorus"|"bridge","suggested_caption":string,"confidence":0-100}]}
@@ -56,10 +183,17 @@ Rules:
 - For music, only use hook_type "chorus" or "bridge". For spoken content, use the other five types.`;
 
   if (contentType === "spoken" && transcript) {
-    const transcriptText = transcript.words
-      .map((w) => `[${(w.start / 1000).toFixed(1)}s] ${w.text}`)
-      .join(" ");
-    return `${instructions}\n\nTRANSCRIPT (word start times in seconds):\n${transcriptText}`;
+    const spokenRules = `Additional rules for spoken content:
+- Standalone completeness: start_time must land exactly on the START of one of the sentences listed below, and end_time must land exactly on the END of one of the sentences listed below — never mid-sentence. Never start on a pronoun or reference ("it", "that", "this", "she", "they") whose meaning depends on something said earlier that isn't included in the clip.
+- Strong opening: the clip's first sentence must itself be a reason to keep watching — a question, a bold claim, a surprising statement. Never open on filler, an introduction, or a meaningless transition ("so anyway", "let me tell you about", "okay so").
+- Meaningful payoff: prefer a moment that builds to a conclusion, reveal, punchline, result, or emotional turn — and that payoff must actually happen within the clip, using only what the sentences below actually say. Never select a moment whose setup promises a payoff that doesn't occur in the available transcript, and never invent or imply an outcome that isn't actually said.
+- Variety: the moments you select must cover meaningfully different points, topics, stories, or emotional beats. Do not select two moments that make essentially the same point, even if their timestamps don't overlap.
+- Natural endings: end exactly at the end of a sentence, after the thought or moment has resolved — never cut away mid-sentence or mid-thought.`;
+
+    const sentenceText = sentences
+      .map((s) => `[${s.start.toFixed(1)}s-${s.end.toFixed(1)}s] ${s.text}`)
+      .join("\n");
+    return `${instructions}\n\n${spokenRules}\n\nTRANSCRIPT (sentences, start-end timestamps in seconds):\n${sentenceText}`;
   }
 
   const windows = audioAnalysis?.windows ?? [];
@@ -245,17 +379,133 @@ export function dedupeOverlappingSegments(segments: SelectedSegment[]): Selected
     .map((k) => k.segment);
 }
 
+// How close (in seconds) a model-returned timestamp must already be to a
+// sentence boundary before it's snapped to that boundary exactly. 1.5s is
+// generous enough to correct the kind of small arithmetic/copy drift a
+// model typically introduces when transcribing a timestamp out of a long
+// prompt (sub-second to low-single-digit-second), while small enough that
+// it could never be mistaken for the model having actually intended a
+// different, further-away sentence.
+const ABSOLUTE_SNAP_TOLERANCE_SECONDS = 1.5;
+// Additionally, never snap across more than this fraction of the
+// candidate boundary's OWN sentence duration — this is what satisfies "do
+// not move a timestamp across a substantial portion of a sentence": for a
+// short ~2s sentence the absolute cap above would still let a snap eat a
+// large share of it (1.5s of a 2s sentence), so the effective tolerance is
+// whichever of the two caps is tighter, and for short sentences that's
+// always this one.
+const RELATIVE_SNAP_FRACTION = 0.25;
+
+// Known, accepted limitation: start_time and end_time are snapped
+// INDEPENDENTLY, each to its own nearest same-type boundary. When sentence
+// boundaries are bunched close together (several short sentences in quick
+// succession), the two independent snaps can land on boundaries that
+// together span a different combination of sentences than the model's raw
+// numbers suggested — e.g. the model's own end_time was 1.3s past sentence
+// S4's end and 1.4s short of S5's end, nearest-boundary snapping picks S4's
+// end, and the clip ends up covering S1-S4 rather than whatever mix of
+// S1-S5 the model actually had in mind. This does not mean the "moment" is
+// lost — the result is still a valid, sentence-aligned clip built from
+// content adjacent to what the model selected — but the corrected interval
+// can legitimately represent different content than intended.
+//
+// A cross-check was considered (reject a snap whose combined [start, end]
+// doesn't substantially overlap the model's original [start, end], the
+// same idea as Step 1's overlapRatio) and deliberately not added: any such
+// check would use exactly the same distance information the per-endpoint
+// tolerance already uses, so it cannot distinguish "snapped to the wrong
+// neighbor" from "snapped to the right one" any better than the existing
+// tolerance does — and a check strict enough to catch the former would
+// also reject legitimate multi-sentence clips, where start_time and
+// end_time are SUPPOSED to snap to boundaries several sentences apart.
+// Each individual snap stays bounded (at most
+// ABSOLUTE_SNAP_TOLERANCE_SECONDS, and at most RELATIVE_SNAP_FRACTION of
+// the sentence it snaps to), which is the honest limit on how far this
+// risk can reach; narrowing it further is not justified without a way to
+// tell the two cases apart that doesn't already exist here.
+function snapToNearestSentenceBoundary(time: number, sentences: Sentence[], boundary: "start" | "end"): number {
+  let nearest: number | null = null;
+  let nearestDistance = Infinity;
+  let nearestSentenceDuration = 0;
+
+  for (const sentence of sentences) {
+    const candidate = boundary === "start" ? sentence.start : sentence.end;
+    const distance = Math.abs(candidate - time);
+    if (distance < nearestDistance) {
+      nearestDistance = distance;
+      nearest = candidate;
+      nearestSentenceDuration = sentence.end - sentence.start;
+    }
+  }
+
+  if (nearest === null) return time; // no sentences to snap against — leave the model's own value alone
+
+  const tolerance = Math.min(ABSOLUTE_SNAP_TOLERANCE_SECONDS, RELATIVE_SNAP_FRACTION * nearestSentenceDuration);
+  return nearestDistance <= tolerance ? nearest : time;
+}
+
+/**
+ * Corrects a model-returned segment's start_time/end_time to land exactly
+ * on the nearest sentence boundary from the same sentence list the prompt
+ * supplied — only when that boundary is already within tolerance (see
+ * ABSOLUTE_SNAP_TOLERANCE_SECONDS/RELATIVE_SNAP_FRACTION above). A no-op
+ * (returns `segment` unchanged) for music, for a null/empty transcript, or
+ * for any segment whose timestamps are already outside tolerance of every
+ * sentence boundary — there's deliberately no "snap to the closest thing
+ * however far" behavior; outside tolerance, the model's own value is left
+ * exactly as returned.
+ *
+ * Revalidates the result as a single unit: if snapping would collapse the
+ * clip to zero/negative length, or push its duration outside the
+ * [MIN_CLIP_SECONDS, MAX_CLIP_SECONDS] bounds the rest of the pipeline
+ * already relies on, or push end_time past maxEndSeconds (the same +0.5s
+ * epsilon selectSegments() already uses elsewhere), the snap is rejected
+ * in its entirety and the original, unsnapped segment is returned instead
+ * — never a partially-corrected segment where only one side moved.
+ */
+function snapSegmentToSentenceBoundaries(segment: SelectedSegment, sentences: Sentence[], maxEndSeconds: number): SelectedSegment {
+  if (sentences.length === 0) return segment;
+
+  const snappedStart = snapToNearestSentenceBoundary(segment.start_time, sentences, "start");
+  const snappedEnd = snapToNearestSentenceBoundary(segment.end_time, sentences, "end");
+
+  if (snappedStart === segment.start_time && snappedEnd === segment.end_time) {
+    return segment; // nothing moved
+  }
+
+  const snappedDuration = snappedEnd - snappedStart;
+  const isValid =
+    snappedDuration >= MIN_CLIP_SECONDS &&
+    snappedDuration <= MAX_CLIP_SECONDS &&
+    snappedStart >= 0 &&
+    snappedEnd <= maxEndSeconds + 0.5;
+
+  if (!isValid) return segment; // reject the snap entirely rather than return an inconsistent result
+
+  return { ...segment, start_time: snappedStart, end_time: snappedEnd };
+}
+
 export async function selectSegments(
   contentType: ContentType,
   transcript: Transcript | null,
   audioAnalysis: AudioAnalysis | null,
   maxEndSeconds: number,
+  client: AnthropicMessagesClient = anthropic,
 ): Promise<SelectedSegment[]> {
-  const prompt = buildPrompt(contentType, transcript, audioAnalysis, maxEndSeconds);
+  // Computed exactly once here — [] whenever contentType isn't spoken or
+  // transcript is null/empty, which is exactly what makes the snap step a
+  // guaranteed no-op for music (see snapSegmentToSentenceBoundaries above):
+  // this is structural, not just a convention this code happens to follow.
+  // Passed into buildPrompt() below for the prompt's transcript section,
+  // and reused again for the snap step after the model responds — the
+  // same list both places, not recomputed a second time via a second
+  // groupIntoSentences() call inside buildPrompt() itself.
+  const sentences = contentType === "spoken" && transcript ? groupIntoSentences(transcript) : [];
+  const prompt = buildPrompt(contentType, transcript, audioAnalysis, maxEndSeconds, sentences);
 
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const message = await anthropic.messages.create({
+      const message = await client.messages.create({
         model: env.anthropicModel,
         max_tokens: 1500,
         messages: [{ role: "user", content: prompt }],
@@ -270,8 +520,32 @@ export async function selectSegments(
       const parsed = responseSchema.safeParse(JSON.parse(jsonMatch[0]));
       if (!parsed.success) continue;
 
-      const valid = parsed.data.segments.filter((s) => s.end_time > s.start_time && s.end_time <= maxEndSeconds + 0.5);
-      if (valid.length > 0) return valid;
+      // start_time >= 0 is explicit here even though segmentSchema already
+      // declares start_time as z.number().nonnegative() (so a negative
+      // value fails the whole response's parse above, before reaching
+      // this line, under the current schema) — kept explicit anyway as
+      // defense-in-depth at this specific filter, consistent with the
+      // explicit end_time checks right beside it, rather than relying on
+      // an upstream schema detail a future reader of just this line might
+      // not know about.
+      const valid = parsed.data.segments.filter((s) => s.start_time >= 0 && s.end_time > s.start_time && s.end_time <= maxEndSeconds + 0.5);
+      // Enforce the 12-45s duration requirement here, on the model's raw
+      // timestamps, rather than relying on prompt text alone — this must
+      // run BEFORE snapping (not just after it) because a segment whose
+      // endpoints are already exactly on sentence boundaries never enters
+      // snapSegmentToSentenceBoundaries' own revalidation at all (its
+      // early "nothing moved" return skips that check entirely). Rejecting
+      // out-of-range segments here, rather than stretching/shrinking them,
+      // keeps every later stage (snapping, Step 1's overlap filter)
+      // operating only on durations the rest of the pipeline already
+      // assumes are valid.
+      const validDuration = valid.filter((s) => {
+        const duration = s.end_time - s.start_time;
+        return duration >= MIN_CLIP_SECONDS && duration <= MAX_CLIP_SECONDS;
+      });
+      if (validDuration.length > 0) {
+        return validDuration.map((s) => snapSegmentToSentenceBoundaries(s, sentences, maxEndSeconds));
+      }
     } catch (err) {
       const status = err && typeof err === "object" && "status" in err ? (err as { status?: number }).status : undefined;
       console.error(`[selectSegments] Anthropic call failed (attempt ${attempt + 1}, status ${status ?? "n/a"}):`, err instanceof Error ? err.message : err);
